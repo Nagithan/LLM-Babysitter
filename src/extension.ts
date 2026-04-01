@@ -1,26 +1,51 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { BackseatPilotViewProvider } from './webview/BackseatPilotViewProvider.js';
+import { Logger } from './core/Logger.js';
+import { BlacklistCommand } from './commands/BlacklistCommand.js';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+/**
+ * Extension Entry Point.
+ * Optimized for minimal logic and maximum delegation to modular services.
+ */
 export function activate(context: vscode.ExtensionContext) {
+    const logger = Logger.getInstance();
+    logger.info('Backseat Pilot activated and ready to fly.');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "backseat-pilot" is now active!');
+    // Initialize the View Provider
+    const provider = new BackseatPilotViewProvider(context.extensionUri, context);
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('backseat-pilot.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from Backseat Pilot!');
-	});
+    // Register Webview View
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(BackseatPilotViewProvider.viewType, provider)
+    );
 
-	context.subscriptions.push(disposable);
+    /**
+     * COMMAND REGISTRATION
+     * Modular commands are registered via their specific Command classes.
+     * Utility commands are registered directly for brevity.
+     */
+    BlacklistCommand.register(context, provider);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('backseat-pilot.refresh', () => provider.refresh()),
+        vscode.commands.registerCommand('backseat-pilot.expandAll', () => provider.expandAll()),
+        vscode.commands.registerCommand('backseat-pilot.collapseAll', () => provider.collapseAll())
+    );
+
+    /**
+     * OBSERVERS
+     * React to configuration changes to keep the file tree in sync.
+     */
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('backseat-pilot')) {
+                provider.refresh();
+            }
+        })
+    );
 }
 
-// This method is called when your extension is deactivated
+/**
+ * Cleanup logic on extension deactivation.
+ */
 export function deactivate() {}

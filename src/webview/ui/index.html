@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Backseat Pilot</title>
+</head>
+<body>
+    <div id="app">
+        <section class="form-section">
+            <h3 id="label-prePrompt">Pre-prompt (Intro)</h3>
+            <div class="input-container">
+                <vscode-text-area class="main-textarea" id="prePrompt" placeholder="Enter pre-prompt..." rows="4"></vscode-text-area>
+                <div class="favorite-actions">
+                    <vscode-button appearance="icon" id="save-prePrompt" title="Save as Favorite">
+                        <span class="codicon codicon-heart"></span>
+                    </vscode-button>
+                </div>
+            </div>
+            <div class="favorites-list" id="favorites-prePrompt"></div>
+        </section>
+
+        <section class="form-section">
+            <h3 id="label-instruction">Main Instruction</h3>
+            <div class="input-container">
+                <vscode-text-area class="main-textarea" id="instruction" placeholder="Analyse this code and find bugs..." rows="6"></vscode-text-area>
+                <div class="favorite-actions">
+                    <vscode-button appearance="icon" id="save-instruction" title="Save as Favorite">
+                        <span class="codicon codicon-heart"></span>
+                    </vscode-button>
+                </div>
+            </div>
+            <div class="favorites-list" id="favorites-instruction"></div>
+        </section>
+
+        <section class="form-section">
+            <div class="section-header">
+                <h3 id="label-files">Workspace Files</h3>
+                <div class="header-actions">
+                    <vscode-button appearance="icon" id="selectAll" title="Select All">
+                        <span class="codicon codicon-check-all"></span>
+                    </vscode-button>
+                    <vscode-button appearance="icon" id="deselectAll" title="Deselect All">
+                        <span class="codicon codicon-clear-all"></span>
+                    </vscode-button>
+                </div>
+            </div>
+            <div class="search-container">
+                <vscode-text-field id="fileSearch" placeholder="Search files..."></vscode-text-field>
+            </div>
+            <div id="file-tree" class="file-tree"></div>
+        </section>
+
+        <section class="form-section">
+            <h3 id="label-postPrompt">Post-prompt (Conclusion)</h3>
+            <div class="input-container">
+                <vscode-text-area class="main-textarea" id="postPrompt" placeholder="..." rows="4"></vscode-text-area>
+                <div class="favorite-actions">
+                    <vscode-button appearance="icon" id="save-postPrompt">
+                        <span class="codicon codicon-heart"></span>
+                    </vscode-button>
+                </div>
+            </div>
+            <div class="favorites-list" id="favorites-postPrompt"></div>
+        </section>
+
+        <section id="preview-section" class="form-section preview-collapsed">
+            <div class="section-header">
+                <h3 id="label-preview">Prompt Preview</h3>
+                <vscode-button appearance="icon" id="toggle-preview">
+                    <span class="codicon codicon-eye"></span>
+                </vscode-button>
+            </div>
+            <div id="preview-content" class="preview-content"></div>
+        </section>
+
+        <div class="main-actions">
+            <vscode-button id="copy-clipboard" class="primary-btn">
+                <span class="codicon codicon-copy" slot="start"></span>
+                Copy to Clipboard
+            </vscode-button>
+        </div>
+        
+        <div id="status-bar" class="status-bar"></div>
+    </div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

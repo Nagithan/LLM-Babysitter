@@ -1,71 +1,57 @@
-# backseat-pilot README
+# Backseat Pilot 🚀
 
-This is the README for your extension "backseat-pilot". After writing up a brief description, we recommend including the following sections.
+**Boost your LLM context with surgical precision.**
 
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+Backseat Pilot is a high-performance VS Code extension designed for developers who want to generate perfectly structured prompts with full code context. No more copy-pasting dozens of files manually. Select, configure, and fly.
 
 ---
 
-## Following extension guidelines
+## ✨ Features
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+### ⚡ High Performance Explorer
+Navigate your project and select files with a polished, searchable tree view. Native workspace scanning ensures instant file listing, even in giant repositories.
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+### 🧠 Senior Developer Templates
+Get the best results from GPT-4o, Claude 3.5 Sonnet, and others with expert-curated templates:
+- **Senior Expert**: Professional, code-quality focused instructions.
+- **Architect Mode**: Scalability and robustness analysis.
+- **Code Consultant**: Maintenance and optimization strategies.
+- **Problem Solver**: Bug detection and surgical upgrades.
 
-## Working with Markdown
+### 📊 Real-time Token Metrics
+Live token counting with smart color-coding helps you stay within your model's context limits without guessing.
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+### 🎯 Structured Prompt Wrapping
+Automatically wraps your code in structured Markdown blocks with environmental context (date, file paths) for maximum AI comprehension.
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+---
 
-## For more information
+## 🚀 Getting Started
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+1. **Activate**: Click the **Backseat Pilot** rocket icon in the Activity Bar.
+2. **Select**: Tweak your file selection in the explorer.
+3. **Template**: Choose an **Intro** (e.g., "Senior Expert").
+4. **Action**: Pick an **Instruction** or type your own.
+5. **Paste**: Click **Copy** and paste directly into your LLM window!
 
-**Enjoy!**
+---
+
+## ⚙️ Configuration
+
+Customize your experience via `settings.json`:
+
+| Setting | Type | Default | Description |
+|:---|:---|:---|:---|
+| `backseat-pilot.excludePatterns` | `array` | `[...]` | Glob patterns to exclude (e.g., `**/node_modules/**`, `**/.git/**`). |
+
+---
+
+## 🛡️ Privacy & Performance
+
+- **Local Only**: All scanning and prompt generation happens locally on your machine.
+- **Efficient**: Optimized for large-scale monorepos and complex file structures.
+
+---
+
+**Designed by developers, for developers.**  
+If you find this tool useful, please leave a ⭐⭐⭐⭐⭐ on the Marketplace!
