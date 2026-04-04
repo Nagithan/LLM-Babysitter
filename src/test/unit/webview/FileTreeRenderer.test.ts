@@ -266,4 +266,24 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
         expect(header.classList.contains('disabled')).toBe(true);
         expect(checkbox.disabled).toBe(true);
     });
+
+    it('should show parent as checked if all selectable children are checked, even if some children are empty folders', () => {
+        const roots: FileNode[] = [
+            { name: 'parent', relativePath: 'parent', isDirectory: true, children: [
+                { name: 'file.ts', relativePath: 'parent/file.ts', isDirectory: false },
+                { name: 'empty_folder', relativePath: 'parent/empty_folder', isDirectory: true, children: [] }
+            ]}
+        ];
+
+        // Partially select only the file
+        renderer = new FileTreeRenderer(container, mockIpc, ['parent/file.ts']);
+        renderer.render(roots);
+
+        const parentItem = container.querySelector('.file-tree-item') as HTMLElement;
+        const parentCheckbox = parentItem.querySelector('input[type="checkbox"]') as HTMLInputElement;
+
+        // Current behavior: it might be indeterminate because empty_folder is not checked
+        expect(parentCheckbox.checked).toBe(true);
+        expect(parentCheckbox.indeterminate).toBe(false);
+    });
 });

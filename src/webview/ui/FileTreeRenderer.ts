@@ -253,8 +253,13 @@ export class FileTreeRenderer {
             return { checked: this.selectedFiles.includes(node.relativePath), indeterminate: false };
         }
         
-        // For directories, it's checked if all recursively-reachable files are selected
-        if (!node.children || node.children.length === 0) {
+        // For directories, it's checked if all recursively-reachable files are selected.
+        // A loaded empty directory is vacuously checked as all its (zero) files are selected.
+        if (node.isDirectory && node.children?.length === 0) {
+            return { checked: true, indeterminate: false };
+        }
+
+        if (!node.children) {
             return { checked: false, indeterminate: false };
         }
 
