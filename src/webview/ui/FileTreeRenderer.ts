@@ -25,7 +25,14 @@ export class FileTreeRenderer {
     }
 
     public render(roots: FileNode[] = [], force: boolean = false): void {
-        if (roots.length > 0 && (roots !== this.currentRoots || force)) {
+        if (roots.length === 0) {
+            this.currentRoots = [];
+            this.container.innerHTML = '<div class="empty-state">No files found.</div>';
+            this.nodeDomMap.clear();
+            return;
+        }
+
+        if (roots !== this.currentRoots || force) {
             this.currentRoots = roots;
             this.container.textContent = '';
             this.nodeDomMap.clear(); // Always clear DOM map on full render

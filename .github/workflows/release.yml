@@ -61,9 +61,26 @@ jobs:
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         run: npm run lint --if-present
 
-      - name: Run unit tests
+      # --- DÉBUT DE L'ARCHITECTURE DE TESTS ---
+
+      - name: Run Unit Tests (Vitest)
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: npm run test:unit --if-present
+        run: npm run test:unit
+
+      - name: Compile Integration Tests
+        if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm run compile-tests
+
+      - name: Install xvfb (Virtual Display for VS Code)
+        if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run Integration Tests (VS Code CLI)
+        if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        # xvfb-run permet de lancer le processus dans l'écran virtuel invisible
+        run: xvfb-run -a npm run test:integration
+
+      # --- FIN DE L'ARCHITECTURE DE TESTS ---
 
       - name: Build production bundle
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'

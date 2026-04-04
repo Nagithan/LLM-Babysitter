@@ -1,8 +1,0 @@
-{
-  "extension": ["js"],
-  "spec": "out/test/unit/**/*.test.js",
-  "require": ["source-map-support/register"],
-  "recursive": true,
-  "ui": "bdd",
-  "timeout": 2000
-}

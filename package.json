@@ -104,7 +104,7 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "npm run test:unit && npm run test:integration",
+    "test": "npm run test:unit && npm run compile-tests && npm run test:integration",
     "test:integration": "vscode-test",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -112,7 +112,6 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/sinon": "^21.0.0",
     "@types/vscode": "^1.100.0",
     "@vitest/coverage-v8": "^4.1.2",
     "@vscode/test-cli": "^0.0.12",
@@ -121,10 +120,10 @@
     "esbuild": "^0.27.3",
     "eslint": "^9.39.3",
     "esmock": "^2.7.3",
+    "fast-check": "^3.23.2",
     "jsdom": "^29.0.1",
     "mocha": "^11.7.5",
     "npm-run-all": "^4.1.5",
-    "sinon": "^21.0.3",
     "source-map-support": "^0.5.21",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
@@ -132,7 +131,6 @@
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.45",
-    "ignore": "^7.0.5",
-    "minimatch": "^10.2.5"
+    "ignore": "^7.0.5"
   }
 }

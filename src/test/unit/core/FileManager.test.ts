@@ -1,0 +1,180 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as vscode from 'vscode';
+import { FileManager } from '../../../core/FileManager.js';
+import { TestUtils } from '../../testUtils.js';
+
+/**
+ * Unit Tests for FileManager.
+ * These tests run within the Vitest environment with mocked VS Code API.
+ */
+describe('FileManager Unit Tests', () => {
+
+    beforeEach(async () => {
+        await TestUtils.fullReset();
+        TestUtils.setupWorkspaceFolders([{ name: 'Project', path: '/workspaces/project' }]);
+    });
+
+    describe('resolveDisplayPath', () => {
+        it('should resolve a valid display path within the workspace', () => {
+            const uri = FileManager.resolveDisplayPath('Project/src/main.ts');
+            expect(uri.fsPath).toBe('/workspaces/project/src/main.ts');
+        });
+
+        it('should throw Security Error for path traversal via ".."', () => {
+            expect(() => {
+                FileManager.resolveDisplayPath('Project/../../etc/passwd');
+            }).toThrow(/Security Error/);
+        });
+
+        it('should throw if workspace folder is not found', () => {
+            expect(() => {
+                FileManager.resolveDisplayPath('Unknown/file.txt');
+            }).toThrow(/Workspace folder "Unknown" not found/);
+        });
+    });
+
+    describe('getRoots', () => {
+        it('should return an array of root nodes based on workspace folders', async () => {
+            const roots = await FileManager.getRoots();
+            expect(Array.isArray(roots)).toBe(true);
+            expect(roots.length).toBe(1);
+            expect(roots[0].name).toBe('Project');
+            expect(roots[0].isDirectory).toBe(true);
+        });
+
+        it('should return empty array if no workspace folders', async () => {
+            TestUtils.clearWorkspaceFolders();
+            const roots = await FileManager.getRoots();
+            expect(roots).toEqual([]);
+        });
+    });
+
+    describe('getFolderChildren', () => {
+        it('should list children of a folder and sort them (directories first)', async () => {
+            const ws = vscode.workspace as any;
+            ws.setMockFile('/workspaces/project/src/file.ts', 'content');
+            ws.setMockFile('/workspaces/project/src/subdir/placeholder', '');
+            ws.setMockFile('/workspaces/project/src/another_file.ts', 'content');
+
+            const children = await FileManager.getFolderChildren('Project/src');
+            
+            expect(children.length).toBe(3);
+            expect(children[0].name).toBe('subdir');
+            expect(children[0].isDirectory).toBe(true);
+            expect(children[1].name).toBe('another_file.ts');
+            expect(children[2].name).toBe('file.ts');
+        });
+
+        it('should ignore files starting with dot except .github and .vscode', async () => {
+            const ws = vscode.workspace as any;
+            ws.setMockFile('/workspaces/project/src/.git/config', '');
+            ws.setMockFile('/workspaces/project/src/.github/workflow.yml', '');
+            ws.setMockFile('/workspaces/project/src/.vscode/settings.json', '');
+            ws.setMockFile('/workspaces/project/src/.normal_hidden', '');
+            ws.setMockFile('/workspaces/project/src/visible.ts', '');
+
+            const children = await FileManager.getFolderChildren('Project/src');
+            const names = children.map(c => c.name);
+            
+            expect(names).toContain('.github');
+            expect(names).toContain('.vscode');
+            expect(names).toContain('visible.ts');
+            expect(names).not.toContain('.git');
+            expect(names).not.toContain('.normal_hidden');
+        });
+
+        it('should deduplicate concurrent scans for the same path', async () => {
+            let callCount = 0;
+            const fsImpl = (vscode.workspace as any).getFsImpl();
+            // Need a file to exist so readDirectory doesn't fail
+            (vscode.workspace as any).setMockFile('/workspaces/project/concurrent/placeholder', '');
+
+            vi.mocked(vscode.workspace.fs.readDirectory).mockImplementation(async (uri) => {
+                callCount++;
+                await new Promise(r => setTimeout(r, 10));
+                return fsImpl.readDirectory(uri);
+            });
+
+            // Fire multiple concurrent scans
+            const p1 = FileManager.getFolderChildren('Project/concurrent');
+            const p2 = FileManager.getFolderChildren('Project/concurrent');
+            
+            await Promise.all([p1, p2]);
+            
+            expect(callCount).toBe(1);
+        });
+    });
+
+    describe('getFileContent', () => {
+        it('should return file content for a valid text file', async () => {
+            (vscode.workspace as any).setMockFile('/workspaces/project/src/hello.ts', 'Hello World');
+
+            const content = await FileManager.getFileContent('Project/src/hello.ts');
+            expect(content).toBe('Hello World');
+        });
+
+        it('should skip directories', async () => {
+            const ws = vscode.workspace as any;
+            ws.setMockFile('/workspaces/project/src/dir/file', ''); // Creates a directory 'dir'
+
+            const content = await FileManager.getFileContent('Project/src/dir');
+            expect(content).toContain('skipped');
+            expect(content).toContain('directory');
+        });
+
+        it('should skip large files', async () => {
+            // Manually override stat for this specific case
+            vi.mocked(vscode.workspace.fs.stat).mockResolvedValue({ 
+                type: vscode.FileType.File, 
+                size: 10 * 1024 * 1024,
+                ctime: 0,
+                mtime: 0 
+            });
+
+            const content = await FileManager.getFileContent('Project/src/huge.ts');
+            expect(content).toContain('too large');
+        });
+
+        it('should skip binary files', async () => {
+            (vscode.workspace as any).setMockFile('/workspaces/project/src/image.png', new Uint8Array([0x00, 0x01]));
+
+            const content = await FileManager.getFileContent('Project/src/image.png');
+            expect(content).toContain('Binary file');
+        });
+
+        it('should handle filesystem errors gracefully', async () => {
+            vi.mocked(vscode.workspace.fs.stat).mockRejectedValue(new Error('Device error'));
+            
+            const content = await FileManager.getFileContent('Project/src/fail.ts');
+            expect(content).toContain('Error reading file');
+            expect(content).toContain('Device error');
+        });
+    });
+
+    describe('Security Boundaries (Edge Cases)', () => {
+        it('should throw if no workspace folders are open', () => {
+            TestUtils.clearWorkspaceFolders();
+            expect(() => FileManager.resolveDisplayPath('Project/file.ts')).toThrow('No workspace folders');
+        });
+
+        it('should throw if folder name prefix is incorrect', () => {
+             TestUtils.setupWorkspaceFolders([{ name: 'Real', path: '/real' }]);
+             expect(() => FileManager.resolveDisplayPath('Fake/file.ts')).toThrow('folder "Fake" not found');
+        });
+
+        it('should throw if path escapes via encoded/relative URI tricks', () => {
+            // Mock joinPath to return something outside
+            vi.spyOn(vscode.Uri, 'joinPath').mockReturnValue(vscode.Uri.file('/etc/passwd'));
+            
+            expect(() => FileManager.resolveDisplayPath('Project/../../../etc/passwd')).toThrow('outside of the workspace folder');
+        });
+    });
+
+    describe('getFolderChildren (Error Handling)', () => {
+        it('should log and throw when directory read fails', async () => {
+            vi.mocked(vscode.workspace.fs.readDirectory).mockRejectedValue(new Error('No permission'));
+            
+            await expect(FileManager.getFolderChildren('Project/secret')).rejects.toThrow('No permission');
+        });
+    });
+});

@@ -43,8 +43,9 @@ export class FileManager {
     const normalizedFolder = folder.uri.toString();
     const folderPrefix = normalizedFolder.endsWith('/') ? normalizedFolder : normalizedFolder + '/';
 
+    // console.log(`DEBUG resolve: target=${normalizedTarget}, prefix=${folderPrefix}, fold=${normalizedFolder}`);
     if (!normalizedTarget.startsWith(folderPrefix) && normalizedTarget !== normalizedFolder) {
-        throw new Error('Security Error: Resolved path is outside of the workspace folder.');
+        throw new Error(`Security Error: Resolved path is outside of the workspace folder. Target: ${normalizedTarget}, Prefix: ${folderPrefix}`);
     }
 
     return targetUri;
