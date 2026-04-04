@@ -117,7 +117,7 @@ export class BackseatPilotViewProvider implements vscode.WebviewViewProvider, IW
         const fileTree = await FileManager.getRoots();
         const favorites = this.presetManager.getPresets();
         const translations = LocaleManager.getTranslations();
-        const selectedFiles = this.getSavedSelection();
+        const selectedFiles = await this.getSavedSelectionClean();
         const lastPrePromptId = this.getSavedPresetId('prePrompt');
         const lastPostPromptId = this.getSavedPresetId('postPrompt');
 
@@ -181,6 +181,27 @@ export class BackseatPilotViewProvider implements vscode.WebviewViewProvider, IW
     private getSavedSelection(): string[] {
         const selection = this.context.workspaceState.get('selectedFiles');
         return Array.isArray(selection) ? selection : [];
+    }
+    
+    /**
+     * Restores persisted selection, filtering out any directory paths or 
+     * non-existent files that may have been saved by a previous buggy version.
+     */
+    private async getSavedSelectionClean(): Promise<string[]> {
+        const raw = this.getSavedSelection();
+        const validated: string[] = [];
+        for (const p of raw) {
+            try {
+                const uri = FileManager.resolveDisplayPath(p);
+                const stat = await vscode.workspace.fs.stat(uri);
+                if (stat.type === vscode.FileType.File) { 
+                    validated.push(p); 
+                }
+            } catch { 
+                /* Path no longer exists or is invalid, drop it */ 
+            }
+        }
+        return validated;
     }
     
     public expandAll(): void {

@@ -5,6 +5,7 @@ import { IpcMessageId } from "../../types/index.js";
 export class FileTreeRenderer {
     private nodeDomMap: Map<string, HTMLElement> = new Map();
     private expandedPaths: Set<string> = new Set();
+    private currentRoots: FileNode[] = [];
     private filter: string = '';
 
     constructor(
@@ -13,66 +14,74 @@ export class FileTreeRenderer {
         private selectedFiles: string[]
     ) {}
 
-    public setSelection(selection: string[]): void {
+    public setSelectionSilent(selection: string[]): void {
         this.selectedFiles = selection;
-        this.render();
     }
 
     public setFilter(filter: string): void {
-        this.filter = filter.toLowerCase();
-        this.render();
+        this.filter = filter.toLowerCase().trim();
+        this.nodeDomMap.clear(); // Clear DOM map so nodes are rebuilt with filter applied
+        this.render(this.currentRoots, true); // Force re-render on filter change
     }
 
-    public render(roots: FileNode[] = []): void {
-        if (roots.length > 0) {
+    public render(roots: FileNode[] = [], force: boolean = false): void {
+        if (roots.length > 0 && (roots !== this.currentRoots || force)) {
+            this.currentRoots = roots;
             this.container.textContent = '';
+            this.nodeDomMap.clear(); // Always clear DOM map on full render
             const fragment = document.createDocumentFragment();
-            roots.forEach(root => this.renderNode(root, fragment, this.filter));
+            this.currentRoots.forEach(root => this.renderNode(root, fragment, this.filter));
             this.container.appendChild(fragment);
         } else {
-            // Full re-render if no roots provided (uses cached filter)
-            // In a real reactive app, this would be more granular
+            // Lightweight update: just refresh checkbox states in existing DOM
+            this.refreshCheckboxes();
         }
+    }
+
+    private refreshCheckboxes(): void {
+        this.nodeDomMap.forEach((item, path) => {
+            const node = this.findNodeByPath(this.currentRoots, path);
+            if (node) {
+                const header = item.querySelector('.item-header');
+                const checkbox = header?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+                if (checkbox) {
+                    const state = this.getNodeSelectionState(node);
+                    checkbox.checked = state.checked;
+                    checkbox.indeterminate = state.indeterminate;
+                }
+            }
+        });
+    }
+
+    private findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
+        for (const node of nodes) {
+            if (node.relativePath === path) { return node; }
+            if (node.children) {
+                const found = this.findNodeByPath(node.children, path);
+                if (found) { return found; }
+            }
+        }
+        return null;
     }
 
     private renderNode(node: FileNode, parent: Node, filter: string): boolean {
-        const selfMatches = node.name.toLowerCase().includes(filter);
+        const selfMatches = !filter || node.name.toLowerCase().includes(filter);
+        const isFilterMode = filter.length > 0;
         
-        let item = this.nodeDomMap.get(node.relativePath);
-        if (!item) {
-            item = document.createElement('div');
-            item.className = 'file-tree-item';
-            this.nodeDomMap.set(node.relativePath, item);
-        }
+        let item = document.createElement('div');
+        item.className = 'file-tree-item';
+        this.nodeDomMap.set(node.relativePath, item);
 
-        // We use a separate header and children container
-        let header = item.querySelector('.item-header') as HTMLElement;
-        if (!header) {
-            header = document.createElement('div');
-            header.className = 'item-header';
-            item.appendChild(header);
-        }
+        const header = document.createElement('div');
+        header.className = 'item-header';
+        item.appendChild(header);
         
-        let childrenContainer = item.querySelector('.item-children') as HTMLElement;
-        if (!childrenContainer) {
-            childrenContainer = document.createElement('div');
-            childrenContainer.className = 'item-children';
-            item.appendChild(childrenContainer);
-        }
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'item-children';
+        item.appendChild(childrenContainer);
 
         let anyChildMatches = false;
-        if (node.children) {
-            // To avoid innerHTML = '', we manage children precisely
-            const currentChildPaths = new Set(node.children.map(c => c.relativePath));
-            
-            // Cleanup old children
-            Array.from(childrenContainer.children).forEach(child => {
-                const path = (child as any).dataset?.path;
-                if (path && !currentChildPaths.has(path)) {
-                    childrenContainer.removeChild(child);
-                }
-            });
-
+        if (node.children && node.children.length > 0) {
             node.children.forEach(child => {
                 if (this.renderNode(child, childrenContainer, filter)) {
                     anyChildMatches = true;
@@ -80,26 +89,19 @@ export class FileTreeRenderer {
             });
         }
 
-        if (filter && !selfMatches && !anyChildMatches) {
-            item.style.display = 'none';
-            return false;
-        } else {
-            item.style.display = 'block';
-        }
+        const shouldShow = !filter || selfMatches || anyChildMatches;
+        item.style.display = shouldShow ? '' : 'none';
+        if (!shouldShow) { return false; }
 
-        header.textContent = ''; // Clear header for rebuild - safe since it's just text/icons
+        // In filter mode, always show children; otherwise respect expandedPaths
+        const isExpanded = isFilterMode ? anyChildMatches || selfMatches : this.expandedPaths.has(node.relativePath);
+        item.classList.toggle('expanded', isExpanded);
+
         (item as any).dataset.path = node.relativePath;
-
-        if (this.expandedPaths.has(node.relativePath) || filter) {
-            item.classList.add('expanded');
-        } else {
-            item.classList.remove('expanded');
-        }
 
         // Chevron
         if (node.isDirectory) {
             const chevron = document.createElement('span');
-            const isExpanded = item.classList.contains('expanded');
             chevron.className = `codicon codicon-chevron-${isExpanded ? 'down' : 'right'}`;
             chevron.style.fontSize = '12px';
             chevron.style.marginRight = '2px';
@@ -164,9 +166,7 @@ export class FileTreeRenderer {
             }
         };
 
-        if (parent !== item.parentElement) {
-            parent.appendChild(item);
-        }
+        parent.appendChild(item);
         return true;
     }
 
@@ -184,43 +184,77 @@ export class FileTreeRenderer {
         }
     }
 
-    private handleToggle(node: FileNode, selected: boolean) {
-        // Since the actual state is managed by StateManager/Extension, 
-        // we just notify the host. In a real reactive app, this would be better.
-        // For now, we reuse the existing recursive logic but encapsulated.
+    private async handleToggle(node: FileNode, selected: boolean): Promise<void> {
         let selection = [...this.selectedFiles];
-        const toggleRecursive = (n: FileNode, s: boolean) => {
-            if (s) {
-                if (!selection.includes(n.relativePath)) {selection.push(n.relativePath);}
+
+        const toggleRecursive = async (n: FileNode, s: boolean): Promise<void> => {
+            if (n.isDirectory) {
+                await this.ensureChildrenLoaded(n);
+                if (n.children) {
+                    for (const c of n.children) {
+                        await toggleRecursive(c, s);
+                    }
+                }
             } else {
-                selection = selection.filter(p => p !== n.relativePath);
+                if (s) {
+                    if (!selection.includes(n.relativePath)) { selection.push(n.relativePath); }
+                } else {
+                    selection = selection.filter(p => p !== n.relativePath);
+                }
             }
-            if (n.children) {n.children.forEach(c => toggleRecursive(c, s));}
         };
-        toggleRecursive(node, selected);
+
+        await toggleRecursive(node, selected);
+        this.selectedFiles = selection;
         this.ipc.postMessage({ type: IpcMessageId.UPDATE_SELECTION, payload: selection });
+        // Re-render from current roots to update indeterminate/checked states
+        this.render(this.currentRoots, true);
+    }
+
+    private ensureChildrenLoaded(node: FileNode): Promise<void> {
+        if (node.children && node.children.length > 0) { return Promise.resolve(); }
+        return new Promise((resolve) => {
+            const handler = (event: MessageEvent) => {
+                const msg = event.data;
+                if (msg.type === 'folderChildren' && msg.payload.parentPath === node.relativePath) {
+                    window.removeEventListener('message', handler);
+                    node.children = msg.payload.children;
+                    resolve();
+                }
+            };
+            window.addEventListener('message', handler);
+            this.ipc.postMessage({ type: IpcMessageId.EXPAND_FOLDER, payload: node.relativePath });
+            // Timeout safety
+            setTimeout(() => { window.removeEventListener('message', handler); resolve(); }, 8000);
+        });
     }
 
     private getNodeSelectionState(node: FileNode): { checked: boolean, indeterminate: boolean } {
         if (!node.isDirectory) {
             return { checked: this.selectedFiles.includes(node.relativePath), indeterminate: false };
         }
+        
+        // For directories, it's checked if all recursively-reachable files are selected
         if (!node.children || node.children.length === 0) {
-            return { checked: this.selectedFiles.includes(node.relativePath), indeterminate: false };
+            return { checked: false, indeterminate: false };
         }
+
         let checkedCount = 0;
         let indeterminateCount = 0;
-        node.children.forEach(child => {
-            const state = this.getNodeSelectionState(child);
+
+        node.children.forEach(c => {
+            const state = this.getNodeSelectionState(c);
             if (state.checked) { checkedCount++; }
             if (state.indeterminate) { indeterminateCount++; }
         });
+
+        // Simplified logic: a directory is checked if all its IMMEDIATELY loaded children are checked
         if (checkedCount === node.children.length && checkedCount > 0) {
             return { checked: true, indeterminate: false };
         } else if (checkedCount > 0 || indeterminateCount > 0) {
             return { checked: false, indeterminate: true };
         } else {
-            return { checked: this.selectedFiles.includes(node.relativePath), indeterminate: false };
+            return { checked: false, indeterminate: false };
         }
     }
 
@@ -250,12 +284,17 @@ export class FileTreeRenderer {
         return 'var(--vscode-foreground)';
     }
 
+    public resetExpandedPaths(): void {
+        this.expandedPaths.clear();
+        this.nodeDomMap.clear();
+    }
+
     public handleExpandCollapseAll(expand: boolean, allPaths: string[]): void {
         if (expand) {
             allPaths.forEach(p => this.expandedPaths.add(p));
         } else {
             this.expandedPaths.clear();
         }
-        this.render();
+        this.render(this.currentRoots, true);
     }
 }

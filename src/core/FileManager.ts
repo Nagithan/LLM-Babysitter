@@ -19,7 +19,7 @@ export class FileManager {
    * Securely resolves a display path (format: FolderName/relative/path) to a VS Code URI.
    * Throws if the path is invalid or attempts to escape the workspace.
    */
-  private static resolveDisplayPath(displayPath: string): vscode.Uri {
+  public static resolveDisplayPath(displayPath: string): vscode.Uri {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       throw new Error('No workspace folders are currently open.');

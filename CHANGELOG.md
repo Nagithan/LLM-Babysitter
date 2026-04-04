@@ -2,6 +2,19 @@
 
 All notable changes to the "backseat-pilot" extension will be documented in this file.
 
+## [0.1.2] - 2026-04-04
+
+### Refactored
+- **File Explorer Architecture**: Refactor for robust lazy-loading, recursive selection, and performance.
+
+### Fixed
+- Fixed **Recursive Selection**: Selecting a closed folder now correctly deep-fetches and selects all nested children.
+- Fixed **Rendering Performance**: Implemented partial tree updates and reference-equality checks to eliminate UI flicker and scroll resets during text entry.
+- Fixed **Search Interactivity**: Corrected visibility and expansion logic when a filter is active.
+- Fixed **Expand/Collapse All**: Restored functionality for bulk expand/collapse actions.
+- Added **Filesystem Validation**: Persisted selections are now validated against the filesystem on startup to filter out stale paths.
+- Enforced **File-Only Selection**: Directory paths are no longer stored in the selection set, ensuring consistent prompt generation.
+
 ## [0.1.1] - 2026-04-01
 
 ### Fixed

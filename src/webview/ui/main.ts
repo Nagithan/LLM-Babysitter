@@ -36,6 +36,8 @@ class BackseatPilotUI {
         this.ipc.onMessage((message: ExtensionMessage) => {
             switch (message.type) {
                 case 'initState':
+                    // Full reset: clear expanded state to prevent stale tree display
+                    this.fileTreeRenderer.resetExpandedPaths();
                     this.stateManager.setFileTree(message.payload.fileTree);
                     const { fileTree, ...rest } = message.payload;
                     this.stateManager.updateState(rest);
@@ -118,7 +120,8 @@ class BackseatPilotUI {
         });
 
         // Update Renderers
-        this.fileTreeRenderer.setSelection(state.selectedFiles);
+        // Order matters: set selection BEFORE rendering
+        this.fileTreeRenderer.setSelectionSilent(state.selectedFiles);
         this.fileTreeRenderer.render(tree);
 
         // Update Token Count Trigger
@@ -130,7 +133,7 @@ class BackseatPilotUI {
         const node = this.findNode(tree, parentPath);
         if (node) {
             node.children = children;
-            this.fileTreeRenderer.render(tree);
+            this.fileTreeRenderer.render(tree, true);
         }
     }
 
@@ -171,20 +174,64 @@ class BackseatPilotUI {
         }
     }
 
-    private handleSelectBatch(selected: boolean) {
-        const tree = this.stateManager.getFileTree();
-        let newSelection: string[] = [];
-        if (selected) {
-            const collect = (nodes: FileNode[]) => {
-                nodes.forEach(n => {
-                    if (!n.isDirectory) { newSelection.push(n.relativePath); }
-                    if (n.children) { collect(n.children); }
-                });
-            };
-            collect(tree);
+    private async handleSelectBatch(selected: boolean): Promise<void> {
+        if (!selected) {
+            this.stateManager.updateState({ selectedFiles: [] });
+            this.ipc.postMessage({ type: IpcMessageId.UPDATE_SELECTION, payload: [] });
+            return;
         }
-        this.stateManager.updateState({ selectedFiles: newSelection });
-        this.ipc.postMessage({ type: IpcMessageId.UPDATE_SELECTION, payload: newSelection });
+
+        // Show loading indicator
+        const selectBtn = document.getElementById('selectAll') as HTMLButtonElement;
+        if (selectBtn) { selectBtn.disabled = true; }
+
+        const tree = this.stateManager.getFileTree();
+        const allFiles: string[] = [];
+
+        const deepCollect = async (nodes: FileNode[]): Promise<void> => {
+            for (const n of nodes) {
+                if (!n.isDirectory) {
+                    allFiles.push(n.relativePath);
+                } else {
+                    // Fetch children if not loaded
+                    if (!n.children || n.children.length === 0) {
+                        try {
+                            const children = await this.fetchFolderChildren(n.relativePath);
+                            n.children = children;
+                        } catch { continue; }
+                    }
+                    if (n.children) {
+                        await deepCollect(n.children);
+                    }
+                }
+            }
+        };
+
+        await deepCollect(tree);
+
+        if (selectBtn) { selectBtn.disabled = false; }
+
+        this.stateManager.updateState({ selectedFiles: allFiles });
+        this.ipc.postMessage({ type: IpcMessageId.UPDATE_SELECTION, payload: allFiles });
+    }
+
+    private fetchFolderChildren(folderPath: string): Promise<FileNode[]> {
+        return new Promise((resolve) => {
+            const handler = (event: MessageEvent) => {
+                const msg = event.data;
+                if (msg.type === 'folderChildren' && msg.payload.parentPath === folderPath) {
+                    window.removeEventListener('message', handler);
+                    // Also update the tree node in state manager
+                    const node = this.findNode(this.stateManager.getFileTree(), folderPath);
+                    if (node) { node.children = msg.payload.children; }
+                    resolve(msg.payload.children);
+                }
+            };
+            window.addEventListener('message', handler);
+            this.ipc.postMessage({ type: IpcMessageId.EXPAND_FOLDER, payload: folderPath });
+            // Timeout safety
+            setTimeout(() => { window.removeEventListener('message', handler); resolve([]); }, 10000);
+        });
     }
 
     private handleExpandCollapseAll(expand: boolean) {
