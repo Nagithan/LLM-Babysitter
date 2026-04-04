@@ -36,7 +36,7 @@ export class FileManager {
 
     // Resolve the internal URI using the safe joinPath API
     const targetUri = vscode.Uri.joinPath(folder.uri, relativePath);
-    
+
     // Final verification: ensure the resolved URI is still within the folder's scope
     // Use canonical paths for comparison to prevent bypasses via symlinks or casing issues
     const normalizedTarget = targetUri.toString();
@@ -45,7 +45,7 @@ export class FileManager {
 
     // console.log(`DEBUG resolve: target=${normalizedTarget}, prefix=${folderPrefix}, fold=${normalizedFolder}`);
     if (!normalizedTarget.startsWith(folderPrefix) && normalizedTarget !== normalizedFolder) {
-        throw new Error(`Security Error: Resolved path is outside of the workspace folder. Target: ${normalizedTarget}, Prefix: ${folderPrefix}`);
+      throw new Error(`Security Error: Resolved path is outside of the workspace folder. Target: ${normalizedTarget}, Prefix: ${folderPrefix}`);
     }
 
     return targetUri;
@@ -53,19 +53,19 @@ export class FileManager {
 
   public static async getRoots(): Promise<FileNode[]> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {return [];}
+    if (!workspaceFolders) { return []; }
 
     const roots: FileNode[] = [];
     for (const folder of workspaceFolders) {
-        // Roots are always directories and we assume they might have subdirectories
-        // to avoid heavy pre-scanning. The UI handles lazy loading.
-        roots.push({
-          name: folder.name,
-          relativePath: folder.name,
-          isDirectory: true,
-          hasSubdirectories: true, // Optimistically true for roots
-          children: []
-        });
+      // Roots are always directories and we assume they might have subdirectories
+      // to avoid heavy pre-scanning. The UI handles lazy loading.
+      roots.push({
+        name: folder.name,
+        relativePath: folder.name,
+        isDirectory: true,
+        hasSubdirectories: true, // Optimistically true for roots
+        children: []
+      });
     }
     return roots;
   }
@@ -89,44 +89,44 @@ export class FileManager {
   private static async _getFolderChildrenInternal(displayPath: string): Promise<FileNode[]> {
     try {
       const folderUri = this.resolveDisplayPath(displayPath);
-      
-      const config = vscode.workspace.getConfiguration('backseat-pilot');
+
+      const config = vscode.workspace.getConfiguration('llm-babysitter');
       const userExcludes = config.get<string[]>('excludePatterns') || [];
       const ig = ignore().add(userExcludes);
 
       const entries = await vscode.workspace.fs.readDirectory(folderUri);
-      
+
       // Extract relative path from display path for inclusion checks
       const parts = displayPath.split('/');
       const relativePathInFolder = parts.slice(1).join('/');
 
       const children: FileNode[] = entries
         .map(([name, type]) => {
-            if (name.startsWith('.') && name !== '.github' && name !== '.vscode') { return null; }
-            
-            const isDirectory = type === vscode.FileType.Directory;
-            const childRelativePath = relativePathInFolder ? `${relativePathInFolder}/${name}` : name;
-            
-            if (ig.ignores(childRelativePath)) {
-                return null;
-            }
+          if (name.startsWith('.') && name !== '.github' && name !== '.vscode') { return null; }
 
-            return {
-                name,
-                relativePath: displayPath + '/' + name,
-                isDirectory,
-                // PERFORMANCE OPTIMIZATION: We no longer scan subdirectories here.
-                // We assume directories have subdirectories to enable UI chevrons.
-                // Lazy loading will handle the "empty directory" case gracefully.
-                hasSubdirectories: isDirectory, 
-                children: isDirectory ? [] : undefined
-            } as FileNode;
+          const isDirectory = type === vscode.FileType.Directory;
+          const childRelativePath = relativePathInFolder ? `${relativePathInFolder}/${name}` : name;
+
+          if (ig.ignores(childRelativePath)) {
+            return null;
+          }
+
+          return {
+            name,
+            relativePath: displayPath + '/' + name,
+            isDirectory,
+            // PERFORMANCE OPTIMIZATION: We no longer scan subdirectories here.
+            // We assume directories have subdirectories to enable UI chevrons.
+            // Lazy loading will handle the "empty directory" case gracefully.
+            hasSubdirectories: isDirectory,
+            children: isDirectory ? [] : undefined
+          } as FileNode;
         })
         .filter((c): c is FileNode => c !== null);
 
       children.sort((a, b) => {
-        if (a.isDirectory && !b.isDirectory) {return -1;}
-        if (!a.isDirectory && b.isDirectory) {return 1;}
+        if (a.isDirectory && !b.isDirectory) { return -1; }
+        if (!a.isDirectory && b.isDirectory) { return 1; }
         return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
       });
 
@@ -146,17 +146,17 @@ export class FileManager {
         return '[Selected entry is a directory - skipped]';
       }
       if (stats.size > this.MAX_FILE_SIZE) {
-        return `[File too large (${(stats.size / 1024 / 1024).toFixed(2)} MB) - skipped]`;
+        return `[File too large (${(stats.size / 1024 / 1024).toFixed(2)} MB) - Baby can't swallow this!]`;
       }
 
       const data = await vscode.workspace.fs.readFile(fileUri);
-      
+
       // OPTIMIZATION: BinaryDetector already accepts Uint8Array. 
       // Avoid Buffer.from() which potentially copies memory.
       if (BinaryDetector.isBinary(data)) {
         return '[Binary file - skipped]';
       }
-      
+
       // OPTIMIZATION: Use TextDecoder for cleaner, standard UTF-8 conversion of Uint8Array.
       return new TextDecoder().decode(data);
     } catch (e) {

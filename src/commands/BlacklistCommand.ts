@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from '../core/Logger.js';
-import { BackseatPilotViewProvider } from '../webview/BackseatPilotViewProvider.js';
+import { LLMBabysitterViewProvider } from '../webview/LLMBabysitterViewProvider.js';
 
 /**
  * Command Pattern Implementation for Blacklist functionality.
@@ -14,9 +14,9 @@ export class BlacklistCommand {
      * @param context The extension context.
      * @param provider The webview provider (required for refreshing the file tree).
      */
-    public static register(context: vscode.ExtensionContext, provider: BackseatPilotViewProvider): void {
+    public static register(context: vscode.ExtensionContext, provider: LLMBabysitterViewProvider): void {
         context.subscriptions.push(
-            vscode.commands.registerCommand('backseat-pilot.blacklist', async (uri: vscode.Uri) => {
+            vscode.commands.registerCommand('llm-babysitter.blacklist', async (uri: vscode.Uri) => {
                 await this.execute(uri, provider);
             })
         );
@@ -27,7 +27,7 @@ export class BlacklistCommand {
      * @param uri The URI of the file/folder to blacklist.
      * @param provider The webview provider instance.
      */
-    private static async execute(uri: vscode.Uri, provider: BackseatPilotViewProvider): Promise<void> {
+    private static async execute(uri: vscode.Uri, provider: LLMBabysitterViewProvider): Promise<void> {
         if (!uri) {
             return;
         }
@@ -40,7 +40,7 @@ export class BlacklistCommand {
             return;
         }
 
-        const config = vscode.workspace.getConfiguration('backseat-pilot');
+        const config = vscode.workspace.getConfiguration('llm-babysitter');
         const excludes = config.get<string[]>('excludePatterns') || [];
 
         // Cross-platform reliability for relative path calculation
@@ -54,7 +54,7 @@ export class BlacklistCommand {
             if (!excludes.includes(pattern)) {
                 excludes.push(pattern);
                 await config.update('excludePatterns', excludes, vscode.ConfigurationTarget.Workspace);
-                vscode.window.showInformationMessage(`Added to Backseat Pilot blacklist: ${relativePath}`);
+                vscode.window.showInformationMessage(`Added to LLM Babysitter blacklist: ${relativePath}`);
                 provider.refresh();
             }
         } catch (error: any) {

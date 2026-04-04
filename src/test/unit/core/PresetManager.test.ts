@@ -57,7 +57,7 @@ describe('PresetManager Unit Tests', () => {
             expect(writtenData).toEqual(legacyPresets);
 
             // Verify globalState cleanup
-            expect(mockContext.globalState.update).toHaveBeenCalledWith('backseat-pilot.presets', undefined);
+            expect(mockContext.globalState.update).toHaveBeenCalledWith('llm-babysitter.presets', undefined);
         });
 
         it('should skip migration if no legacy presets found', async () => {

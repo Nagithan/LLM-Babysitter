@@ -18,7 +18,7 @@ describe('Logger Unit Tests', () => {
 
     it('should create an output channel upon initialization', () => {
         Logger.getInstance();
-        expect(vscode.window.createOutputChannel).toHaveBeenCalledWith('Backseat Pilot', { log: true });
+        expect(vscode.window.createOutputChannel).toHaveBeenCalledWith('LLM Babysitter', { log: true });
     });
 
     it('should log info messages to the channel', () => {
@@ -35,7 +35,7 @@ describe('Logger Unit Tests', () => {
         
         const mockChannel = (vscode.window.createOutputChannel as any).mock.results[0].value;
         expect(mockChannel.error).toHaveBeenCalledWith('critical failure');
-        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Backseat Pilot: critical failure');
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('LLM Babysitter: critical failure');
     });
 
     it('should show the output channel', () => {

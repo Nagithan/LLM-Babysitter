@@ -1,18 +1,18 @@
 {
-  "name": "backseat-pilot",
-  "displayName": "Backseat Pilot",
+  "name": "llm-babysitter",
+  "displayName": "LLM Babysitter",
   "description": "Prompt generation with code context for online LLM requests.",
   "publisher": "nagithan",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Nagithan/Backseat-Pilot.git"
+    "url": "https://github.com/Nagithan/LLM-Babysitter.git"
   },
   "bugs": {
-    "url": "https://github.com/Nagithan/Backseat-Pilot/issues"
+    "url": "https://github.com/Nagithan/LLM-Babysitter/issues"
   },
-  "homepage": "https://github.com/Nagithan/Backseat-Pilot#readme",
+  "homepage": "https://github.com/Nagithan/LLM-Babysitter#readme",
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -25,48 +25,48 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "backseat-pilot",
-          "title": "Backseat Pilot",
-          "icon": "$(rocket)"
+          "id": "llm-babysitter",
+          "title": "LLM Babysitter",
+          "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "backseat-pilot": [
+      "llm-babysitter": [
         {
           "type": "webview",
-          "id": "backseat-pilot-view",
+          "id": "llm-babysitter-view",
           "name": "Prompt Generator",
-          "icon": "$(rocket)"
+          "icon": "resources/icon.svg"
         }
       ]
     },
     "commands": [
       {
-        "command": "backseat-pilot.refresh",
+        "command": "llm-babysitter.refresh",
         "title": "Refresh Explorer",
         "icon": "$(refresh)"
       },
       {
-        "command": "backseat-pilot.expandAll",
+        "command": "llm-babysitter.expandAll",
         "title": "Expand All Files",
         "icon": "$(expand-all)"
       },
       {
-        "command": "backseat-pilot.collapseAll",
+        "command": "llm-babysitter.collapseAll",
         "title": "Collapse All Files",
         "icon": "$(collapse-all)"
       },
       {
-        "command": "backseat-pilot.blacklist",
-        "title": "Never include in Backseat Pilot",
+        "command": "llm-babysitter.blacklist",
+        "title": "Never include in LLM Babysitter",
         "icon": "$(circle-slash)"
       }
     ],
     "configuration": {
-      "title": "Backseat Pilot",
+      "title": "LLM Babysitter",
       "properties": {
-        "backseat-pilot.excludePatterns": {
+        "llm-babysitter.excludePatterns": {
           "type": "array",
           "items": {
             "type": "string"
@@ -85,7 +85,7 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "backseat-pilot.blacklist",
+          "command": "llm-babysitter.blacklist",
           "group": "7_modification",
           "when": "resourceScheme == 'file'"
         }

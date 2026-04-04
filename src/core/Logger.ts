@@ -5,7 +5,8 @@ export class Logger {
   private logChannel: vscode.LogOutputChannel;
 
   private constructor() {
-    this.logChannel = vscode.window.createOutputChannel('Backseat Pilot', { log: true });
+    this.logChannel = vscode.window.createOutputChannel('LLM Babysitter', { log: true });
+    this.logChannel.info('Nursery is ready. Babysitter is on duty.');
   }
 
   public static getInstance(): Logger {
@@ -19,7 +20,7 @@ export class Logger {
   public warn(message: string): void { this.logChannel.warn(message); }
   public error(message: string): void { 
     this.logChannel.error(message);
-    vscode.window.showErrorMessage(`Backseat Pilot: ${message}`);
+    vscode.window.showErrorMessage(`LLM Babysitter: ${message}`);
   }
   public debug(message: string): void { this.logChannel.debug(message); }
   public trace(message: string): void { this.logChannel.trace(message); }

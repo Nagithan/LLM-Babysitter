@@ -2,13 +2,13 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 
 /**
- * Distinguished HTML Factory for the Backseat Pilot Webview.
+ * Distinguished HTML Factory for the LLM Babysitter Webview.
  * Responsibility: Strict separation of UI structure from extension logic.
  * Adheres to CSP standards and URI management best practices.
  */
 export class WebviewHtmlFactory {
     /**
-     * Generates the complete HTML document for the Backseat Pilot view.
+     * Generates the complete HTML document for the LLM Babysitter view.
      * @param webview The target webview instance for URI resolution.
      * @param extensionUri The extension's base URI.
      */
@@ -27,7 +27,7 @@ export class WebviewHtmlFactory {
                 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
                 <link href="${codiconsUri}" rel="stylesheet">
                 <link href="${styleUri}" rel="stylesheet">
-                <title>Backseat Pilot</title>
+                <title>LLM Babysitter</title>
             </head>
             <body>
                 <div id="app">

@@ -9,7 +9,7 @@ import { Logger } from './Logger.js';
  * Hardened for industrial usage with atomic write queue and disk-based persistence.
  */
 export class PresetManager {
-  private static readonly PRESETS_KEY = 'backseat-pilot.presets';
+  private static readonly PRESETS_KEY = 'llm-babysitter.presets';
   private static readonly STORAGE_FILENAME = 'user-presets.json';
   private queue = new AsyncQueue();
   private userPresetsCache: Preset[] | null = null;

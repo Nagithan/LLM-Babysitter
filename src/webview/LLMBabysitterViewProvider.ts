@@ -22,13 +22,13 @@ import { SetSelectedPresetHandler } from '../ipc/handlers/SetSelectedPresetHandl
 import { UpdateTextHandler } from '../ipc/handlers/UpdateTextHandler.js';
 
 /**
- * Distinguished Webview Provider for Backseat Pilot.
+ * Distinguished Webview Provider for LLM Babysitter.
  * Responsibility: Orchestrates view lifecycle, state management, and IPC delegation.
  * This class adheres to SRP by delegating HTML generation to WebviewHtmlFactory
  * and IPC routing to IpcMessageRouter.
  */
-export class BackseatPilotViewProvider implements vscode.WebviewViewProvider, IWebviewAccess {
-    public static readonly viewType = 'backseat-pilot-view';
+export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IWebviewAccess {
+    public static readonly viewType = 'llm-babysitter-view';
     private _view?: vscode.WebviewView;
     private presetManager: PresetManager;
     private ipcRouter: IpcMessageRouter;
@@ -85,15 +85,17 @@ export class BackseatPilotViewProvider implements vscode.WebviewViewProvider, IW
 
         webviewView.webview.html = WebviewHtmlFactory.getHtml(webviewView.webview, this._extensionUri);
 
-        // Modular IPC delegation bridge
+        // Modular IPC delegation bridge - The babysitter's intercom
         webviewView.webview.onDidReceiveMessage(async (data: WebviewMessage) => {
             try {
                 if (data.type === 'ready') {
+                    // Waking up the nursery
                     await this.presetManager.load();
                 }
                 await this.ipcRouter.handleMessage(data);
             } catch (error: any) {
-                this.logger.error(`Unified IPC Bridge Error: ${error.message}`);
+                // The AI is having a tantrum
+                this.logger.error(`Babysitting Error: ${error.message}`);
                 this.sendStatus('error', LocaleManager.getTranslation('status.error'));
             }
         });
@@ -154,13 +156,13 @@ export class BackseatPilotViewProvider implements vscode.WebviewViewProvider, IW
      * Persists template selection IDs in workspace state.
      */
     public savePresetId(type: 'prePrompt' | 'postPrompt', id: string | null): void {
-        this.context.workspaceState.update(`backseat-pilot.last-${type}-id`, id);
+        this.context.workspaceState.update(`llm-babysitter.last-${type}-id`, id);
         const key = type === 'prePrompt' ? 'lastPrePromptId' : 'lastPostPromptId';
         this.sendPartialUpdate({ [key]: id });
     }
     
     private getSavedPresetId(type: 'prePrompt' | 'postPrompt'): string | null {
-        return this.context.workspaceState.get(`backseat-pilot.last-${type}-id`) || null;
+        return this.context.workspaceState.get(`llm-babysitter.last-${type}-id`) || null;
     }
 
     /**
@@ -174,12 +176,12 @@ export class BackseatPilotViewProvider implements vscode.WebviewViewProvider, IW
      * Persistence layer for file selections.
      */
     public saveSelection(selection: string[]): void {
-        this.context.workspaceState.update('selectedFiles', selection);
+        this.context.workspaceState.update('llm-babysitter.selected-files', selection);
         this.sendPartialUpdate({ selectedFiles: selection });
     }
     
     private getSavedSelection(): string[] {
-        const selection = this.context.workspaceState.get('selectedFiles');
+        const selection = this.context.workspaceState.get('llm-babysitter.selected-files');
         return Array.isArray(selection) ? selection : [];
     }
     

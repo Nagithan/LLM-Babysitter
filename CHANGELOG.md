@@ -1,6 +1,14 @@
 # Change Log
 
-All notable changes to the "backseat-pilot" extension will be documented in this file.
+All notable changes to the "llm-babysitter" extension will be documented in this file.
+
+## [0.1.3] - 2026-04-04
+
+### Added
+- **New Test Suite**: Comprehensive unit testing with Vitest and integration testing with @vscode/test-cli, achieving high reliability across the extension's core services.
+
+### Changed
+- **Rebranding**: Renamed the entire extension from "Backseat Pilot" to **LLM Babysitter** across the codebase, configuration, and documentation due to a name collision with an existing extension.
 
 ## [0.1.2] - 2026-04-04
 
@@ -23,4 +31,4 @@ All notable changes to the "backseat-pilot" extension will be documented in this
 ## [0.1.0] - 2026-04-01
 
 ### Added
-- Initial release of **Backseat Pilot**.
+- Initial release of **LLM Babysitter**.

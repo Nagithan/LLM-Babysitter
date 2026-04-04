@@ -1,6 +1,6 @@
 export const TRANSLATIONS = {
   en: {
-    "app.title": "Backseat Pilot",
+    "app.title": "LLM Babysitter",
     "section.prePrompt": "Pre-prompt (Intro)",
     "section.instruction": "Main Instruction",
     "section.files": "Workspace Files",
@@ -37,7 +37,7 @@ export const TRANSLATIONS = {
     "tooltip.postPrompt": "Final instructions on the output format or meta-directives."
   },
   fr: {
-    "app.title": "Backseat Pilot",
+    "app.title": "LLM Babysitter",
     "section.prePrompt": "Pré-prompt (Intro)",
     "section.instruction": "Instruction principale",
     "section.files": "Fichiers du Workspace",

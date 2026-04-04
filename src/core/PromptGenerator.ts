@@ -32,7 +32,7 @@ export class PromptGenerator {
     const results = await Promise.all(
       selectedFiles.map(async (relativePath) => {
         const content = await FileManager.getFileContent(relativePath);
-        
+
         // Skip directories and failed reads (defensive parity)
         if (content === '[Selected entry is a directory - skipped]') {
           return null;

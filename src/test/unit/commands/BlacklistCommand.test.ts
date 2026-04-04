@@ -33,7 +33,7 @@ describe('BlacklistCommand Unit Tests', () => {
         const mockContext: any = { subscriptions: [] };
         BlacklistCommand.register(mockContext, mockProvider);
         expect(mockContext.subscriptions.length).toBe(1);
-        expect(vscode.commands.registerCommand).toHaveBeenCalledWith('backseat-pilot.blacklist', expect.any(Function));
+        expect(vscode.commands.registerCommand).toHaveBeenCalledWith('llm-babysitter.blacklist', expect.any(Function));
     });
 
     it('should show warning if URI is not in a workspace folder', async () => {
@@ -65,7 +65,7 @@ describe('BlacklistCommand Unit Tests', () => {
         await (BlacklistCommand as any).execute(uri, mockProvider);
 
         expect(mockConfig.update).toHaveBeenCalledWith('excludePatterns', ['**/src/file.ts'], vscode.ConfigurationTarget.Workspace);
-        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('Added to Backseat Pilot blacklist: src/file.ts'));
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('Added to LLM Babysitter blacklist: src/file.ts'));
         expect(mockProvider.refresh).toHaveBeenCalled();
     });
 

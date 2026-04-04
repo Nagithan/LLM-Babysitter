@@ -21,12 +21,12 @@ describe('Extension Activation Unit Tests', () => {
         expect(mockContext.subscriptions.length).toBeGreaterThan(5);
 
         // Verify some specific commands
-        expect(vscode.commands.registerCommand).toHaveBeenCalledWith('backseat-pilot.refresh', expect.any(Function));
-        expect(vscode.commands.registerCommand).toHaveBeenCalledWith('backseat-pilot.expandAll', expect.any(Function));
+        expect(vscode.commands.registerCommand).toHaveBeenCalledWith('llm-babysitter.refresh', expect.any(Function));
+        expect(vscode.commands.registerCommand).toHaveBeenCalledWith('llm-babysitter.expandAll', expect.any(Function));
         
         // Verify webview provider registration
         expect(vscode.window.registerWebviewViewProvider).toHaveBeenCalledWith(
-            'backseat-pilot-view', 
+            'llm-babysitter-view', 
             expect.anything()
         );
     });
@@ -49,7 +49,7 @@ describe('Extension Activation Unit Tests', () => {
         };
         
         callback(mockEvent as any);
-        expect(mockEvent.affectsConfiguration).toHaveBeenCalledWith('backseat-pilot');
+        expect(mockEvent.affectsConfiguration).toHaveBeenCalledWith('llm-babysitter');
     });
 
     it('should have a no-op deactivate function', () => {

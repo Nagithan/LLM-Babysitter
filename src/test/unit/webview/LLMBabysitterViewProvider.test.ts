@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
-import { BackseatPilotViewProvider } from '../../../webview/BackseatPilotViewProvider.js';
+import { LLMBabysitterViewProvider } from '../../../webview/LLMBabysitterViewProvider.js';
 import { FileManager } from '../../../core/FileManager.js';
 import { PresetManager } from '../../../core/PresetManager.js';
 import { LocaleManager } from '../../../i18n/LocaleManager.js';
@@ -10,10 +10,10 @@ import { Logger } from '../../../core/Logger.js';
 import { IpcMessageId } from '../../../types/index.js';
 import { TestUtils } from '../../testUtils.js';
 
-describe('BackseatPilotViewProvider', () => {
+describe('LLMBabysitterViewProvider', () => {
     let mockContext: any;
     let mockView: any;
-    let provider: BackseatPilotViewProvider;
+    let provider: LLMBabysitterViewProvider;
     let mockLogger: any;
     let mockRouter: any;
 
@@ -68,7 +68,7 @@ describe('BackseatPilotViewProvider', () => {
             onDidDispose: vi.fn().mockReturnValue({ dispose: vi.fn() })
         };
 
-        provider = new BackseatPilotViewProvider(
+        provider = new LLMBabysitterViewProvider(
             mockContext.extensionUri,
             mockContext
         );
@@ -157,8 +157,8 @@ describe('BackseatPilotViewProvider', () => {
             (vscode.workspace as any).setMockFile('/fake/src/main.ts', 'content');
 
             vi.mocked(mockContext.workspaceState.get).mockImplementation((key: string) => {
-                if (key === 'selectedFiles') { return ['src/main.ts']; }
-                if (key === 'backseat-pilot.last-prePrompt-id') { return 'p1'; }
+                if (key === 'llm-babysitter.selected-files') { return ['src/main.ts']; }
+                if (key === 'llm-babysitter.last-prePrompt-id') { return 'p1'; }
                 return undefined;
             });
             
@@ -188,12 +188,12 @@ describe('BackseatPilotViewProvider', () => {
     describe('State Persistence', () => {
         it('persists preset IDs', () => {
             provider.savePresetId('prePrompt', 'abc');
-            expect(mockContext.workspaceState.update).toHaveBeenCalledWith('backseat-pilot.last-prePrompt-id', 'abc');
+            expect(mockContext.workspaceState.update).toHaveBeenCalledWith('llm-babysitter.last-prePrompt-id', 'abc');
         });
 
         it('persists selected files', () => {
             provider.saveSelection(['a.ts']);
-            expect(mockContext.workspaceState.update).toHaveBeenCalledWith('selectedFiles', ['a.ts']);
+            expect(mockContext.workspaceState.update).toHaveBeenCalledWith('llm-babysitter.selected-files', ['a.ts']);
         });
     });
 

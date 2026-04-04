@@ -4,7 +4,7 @@ import { StateManager } from "./StateManager.js";
 import { FileTreeRenderer } from "./FileTreeRenderer.js";
 import { PromptSection } from "./PromptSection.js";
 
-class BackseatPilotUI {
+class LLMBabysitterUI {
     private ipc = new IpcClient();
     private stateManager = new StateManager(this.ipc);
     
@@ -270,4 +270,4 @@ class BackseatPilotUI {
     }
 }
 
-new BackseatPilotUI();
+new LLMBabysitterUI();

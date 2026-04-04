@@ -88,7 +88,7 @@ jobs:
 
       - name: Package extension (.vsix)
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: npx @vscode/vsce package -o backseat-pilot-${{ steps.check_version.outputs.version }}.vsix
+        run: npx @vscode/vsce package -o llm-babysitter-${{ steps.check_version.outputs.version }}.vsix
 
       - name: Create GitHub Release
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
@@ -107,7 +107,7 @@ jobs:
           gh release create "$TAG" \
             --title "Release $TAG" \
             --notes-file RELEASE_NOTES.md \
-            backseat-pilot-$VERSION.vsix
+            llm-babysitter-$VERSION.vsix
 
       - name: Publish to Microsoft VS Code Marketplace
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
@@ -119,4 +119,4 @@ jobs:
         if: steps.check_version.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish backseat-pilot-${{ steps.check_version.outputs.version }}.vsix --pat $OVSX_PAT
+        run: npx ovsx publish llm-babysitter-${{ steps.check_version.outputs.version }}.vsix --pat $OVSX_PAT

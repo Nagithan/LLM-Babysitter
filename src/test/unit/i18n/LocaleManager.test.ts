@@ -34,10 +34,10 @@ describe('LocaleManager Unit Tests', () => {
 
     it('should return correct translation for a given key', () => {
         vi.spyOn(vscode.env, 'language', 'get').mockReturnValue('en-US');
-        expect(LocaleManager.getTranslation('app.title')).toBe('Backseat Pilot');
+        expect(LocaleManager.getTranslation('app.title')).toBe('LLM Babysitter');
         
         vi.spyOn(vscode.env, 'language', 'get').mockReturnValue('fr-FR');
-        expect(LocaleManager.getTranslation('app.title')).toBe('Backseat Pilot'); // It's same in both for this key
+        expect(LocaleManager.getTranslation('app.title')).toBe('LLM Babysitter'); // It's same in both for this key
         expect(LocaleManager.getTranslation('button.copy')).toBe('Copier dans le presse-papier');
     });
 
