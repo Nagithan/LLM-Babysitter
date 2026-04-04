@@ -207,6 +207,19 @@ button {
     font-size: 10px;
 }
 
+.favorite-chip.modified {
+    background-color: #f7b05b !important;
+    color: #333 !important;
+    font-weight: 600;
+}
+
+.favorite-chip.modified::before {
+    content: "\ea71"; /* codicon edit/pencil */
+    font-family: codicon;
+    margin-right: 4px;
+    font-size: 10px;
+}
+
 .file-tree {
     border: 1px solid var(--vscode-widget-border);
     border-radius: 6px;

@@ -8,6 +8,7 @@ export class PromptSection {
     private saveBtn: HTMLButtonElement;
     private manageBtn: HTMLButtonElement;
     private selectedPresetId: string | null = null;
+    private lastSelectedPresetId: string | null = null;
     private isInitialized = false;
 
     constructor(
@@ -60,6 +61,7 @@ export class PromptSection {
         
         if (lastId !== undefined) {
             this.selectedPresetId = lastId;
+            this.lastSelectedPresetId = lastId;
         }
 
         // Auto-select logic if empty - ONLY on initial load
@@ -69,11 +71,13 @@ export class PromptSection {
                 const saved = typeFavs.find(f => f.id === this.selectedPresetId);
                 if (saved) {
                     this.textarea.value = saved.content;
+                    this.lastSelectedPresetId = saved.id;
                     this.stateManager.updateState({ [this.type]: saved.content });
                 }
             } else if (typeFavs.length === 1) {
                 this.textarea.value = typeFavs[0].content;
                 this.selectedPresetId = typeFavs[0].id;
+                this.lastSelectedPresetId = typeFavs[0].id;
                 this.stateManager.updateState({ [this.type]: typeFavs[0].content });
             }
         }
@@ -86,28 +90,46 @@ export class PromptSection {
         const favorites = this.stateManager.getState().favorites.filter(f => f.type === this.type);
         const currentText = this.textarea.value;
 
-        // Disambiguate active ID based on content
-        const matchingIds = favorites.filter(f => f.content === currentText).map(f => f.id);
-        if (!matchingIds.includes(this.selectedPresetId || '')) {
-            this.selectedPresetId = matchingIds.length > 0 ? matchingIds[0] : null;
+        // Determine which one truly matches the content right now
+        const matchingFav = favorites.find(f => f.content === currentText);
+        this.selectedPresetId = matchingFav ? matchingFav.id : null;
+        
+        // If content matches a template exactly, it becomes the last known base
+        if (matchingFav) {
+            this.lastSelectedPresetId = matchingFav.id;
         }
 
         this.favoritesContainer.textContent = '';
         favorites.forEach(fav => {
             const chip = document.createElement('div');
             chip.className = 'favorite-chip';
-            if (this.selectedPresetId === fav.id) {
+            
+            const isActive = this.selectedPresetId === fav.id;
+            const isModified = !isActive && this.lastSelectedPresetId === fav.id && currentText.trim().length > 0;
+
+            if (isActive) {
                 chip.classList.add('active');
+            } else if (isModified) {
+                chip.classList.add('modified');
+                chip.title = 'Content modified - click to save as new favorite';
+            } else {
+                chip.title = fav.content;
             }
-            chip.title = fav.content;
+
             chip.textContent = fav.name;
             chip.onclick = () => {
-                const isActive = this.selectedPresetId === fav.id;
+                if (isModified) {
+                    // Re-clicking while modified asks to save
+                    (window as unknown as { showFavoriteModal: (type: string, content: string) => void }).showFavoriteModal(this.type, currentText);
+                    return;
+                }
+
                 const newText = isActive ? '' : fav.content;
                 const newId = isActive ? null : fav.id;
 
                 this.textarea.value = newText;
                 this.selectedPresetId = newId;
+                this.lastSelectedPresetId = newId;
                 this.stateManager.updateState({ [this.type]: newText });
                 
                 if (this.type === 'prePrompt' || this.type === 'postPrompt') {

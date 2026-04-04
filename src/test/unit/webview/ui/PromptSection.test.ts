@@ -166,4 +166,36 @@ describe('PromptSection', () => {
             payload: { type: 'prePrompt', id: null }
         }));
     });
+
+    it('should enter "Modified" state when text is edited and show save modal on click', () => {
+        const favorites: Preset[] = [{ id: 'fav1', name: 'Fav 1', content: 'Original Content', type: 'prePrompt' }];
+        stateManager.getState.mockReturnValue({ favorites });
+        
+        // 1. Select template
+        section.update('', favorites);
+        const textarea = document.getElementById('prePrompt') as HTMLTextAreaElement;
+        const container = document.getElementById('favorites-prePrompt')!;
+        let chip = container.querySelector('.favorite-chip') as HTMLElement;
+        
+        expect(textarea.value).toBe('Original Content');
+        expect(chip.classList.contains('active')).toBe(true);
+
+        // 2. Modify text
+        textarea.value = 'Modified Content';
+        section.update('Modified Content', favorites); // Trigger update with changed text
+        
+        chip = container.querySelector('.favorite-chip') as HTMLElement;
+        expect(chip.classList.contains('active')).toBe(false);
+        expect(chip.classList.contains('modified')).toBe(true);
+
+        // 3. Click modified chip
+        const showFavoriteModalSpy = vi.fn();
+        (window as unknown as { showFavoriteModal: Mock }).showFavoriteModal = showFavoriteModalSpy;
+        
+        chip.click();
+        expect(showFavoriteModalSpy).toHaveBeenCalledWith('prePrompt', 'Modified Content');
+        
+        // Text should NOT have changed (unlike the toggle behavior)
+        expect(textarea.value).toBe('Modified Content');
+    });
 });
