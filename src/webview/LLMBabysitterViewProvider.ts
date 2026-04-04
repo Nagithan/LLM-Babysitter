@@ -199,17 +199,29 @@ export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IW
     private async getSavedSelectionClean(): Promise<string[]> {
         const raw = this.getSavedSelection();
         const validated: string[] = [];
+        let pruned = false;
+
         for (const p of raw) {
             try {
                 const uri = FileManager.resolveDisplayPath(p);
                 const stat = await vscode.workspace.fs.stat(uri);
                 if (stat.type === vscode.FileType.File) { 
                     validated.push(p); 
+                } else {
+                    pruned = true;
                 }
             } catch { 
-                /* Path no longer exists or is invalid, drop it */ 
+                pruned = true;
             }
         }
+
+        if (pruned) {
+            // Persist the cleaned selection back to workspace state
+            this.context.workspaceState.update('llm-babysitter.selected-files', validated);
+            // Notify user with the specific wording requested
+            this.sendStatus('error', 'Some previously selected files were missing (renamed, moved or deleted). They were removed from the selection.');
+        }
+
         return validated;
     }
     

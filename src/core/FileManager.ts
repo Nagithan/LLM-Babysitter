@@ -160,7 +160,11 @@ export class FileManager {
       // OPTIMIZATION: Use TextDecoder for cleaner, standard UTF-8 conversion of Uint8Array.
       return new TextDecoder().decode(data);
     } catch (e) {
-      Logger.getInstance().error(`Failed to read file ${displayPath}: ${e}`);
+      if (e instanceof vscode.FileSystemError && (e.code === 'FileNotFound' || e.code === 'EntryNotFound')) {
+        Logger.getInstance().warn(`File not found: ${displayPath}`);
+      } else {
+        Logger.getInstance().error(`Failed to read file ${displayPath}: ${e}`);
+      }
       return `[Error reading file: ${e instanceof Error ? e.message : e}]`;
     }
   }
