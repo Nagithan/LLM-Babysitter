@@ -7,15 +7,26 @@ import { LocaleManager } from '../../../i18n/LocaleManager.js';
 import { WebviewHtmlFactory } from '../../../webview/WebviewHtmlFactory.js';
 import { IpcMessageRouter } from '../../../ipc/IpcMessageRouter.js';
 import { Logger } from '../../../core/Logger.js';
-import { IpcMessageId } from '../../../types/index.js';
+import { Mock } from 'vitest';
 import { TestUtils } from '../../testUtils.js';
+import { IpcMessageId, WebviewMessage } from '../../../types/index.js';
 
 describe('LLMBabysitterViewProvider', () => {
-    let mockContext: any;
-    let mockView: any;
+    let mockContext: vscode.ExtensionContext;
+    interface MockView {
+        webview: { 
+            postMessage: Mock; 
+            onDidReceiveMessage: Mock; 
+            html: string; 
+            options: { enableScripts: boolean; localResourceRoots: vscode.Uri[] };
+            cspSource: string;
+        };
+        onDidDispose: Mock;
+    }
+    let mockView: MockView;
     let provider: LLMBabysitterViewProvider;
-    let mockLogger: any;
-    let mockRouter: any;
+    let mockLogger: { info: Mock; error: Mock; warn: Mock };
+    let mockRouter: { register: Mock; handleMessage: Mock };
 
     beforeEach(async () => {
         await TestUtils.fullReset();
@@ -41,32 +52,36 @@ describe('LLMBabysitterViewProvider', () => {
             error: vi.fn(),
             warn: vi.fn()
         };
-        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger as any);
+        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger as unknown as Logger);
 
         mockContext = {
             subscriptions: [],
             extensionUri: vscode.Uri.parse('file:///fake'),
             globalStorageUri: vscode.Uri.parse('file:///fake-storage'),
             workspaceState: {
-                get: vi.fn().mockReturnValue(undefined),
+                get: vi.fn(),
                 update: vi.fn().mockResolvedValue(undefined)
             },
             globalState: {
-                get: vi.fn().mockReturnValue(undefined),
+                get: vi.fn(),
                 update: vi.fn().mockResolvedValue(undefined)
             }
-        };
+        } as unknown as vscode.ExtensionContext;
 
         mockView = {
             webview: {
-                options: {},
+                options: {
+                    enableScripts: true,
+                    localResourceRoots: [vscode.Uri.parse('file:///fake')]
+                },
                 html: '',
                 postMessage: vi.fn().mockResolvedValue(undefined),
                 onDidReceiveMessage: vi.fn().mockReturnValue({ dispose: vi.fn() }),
-                cspSource: 'vscode-resource:'
+                cspSource: 'vscode-resource:',
+                onDidDispose: vi.fn()
             },
             onDidDispose: vi.fn().mockReturnValue({ dispose: vi.fn() })
-        };
+        } as unknown as MockView;
 
         provider = new LLMBabysitterViewProvider(
             mockContext.extensionUri,
@@ -99,31 +114,34 @@ describe('LLMBabysitterViewProvider', () => {
     });
 
     describe('resolveWebviewView', () => {
-        const cancellationToken: any = { isCancellationRequested: false, onCancellationRequested: vi.fn() };
+        const cancellationToken = { 
+            isCancellationRequested: false, 
+            onCancellationRequested: vi.fn() 
+        } as unknown as vscode.CancellationToken;
 
         it('sets webview options correctly', () => {
-            provider.resolveWebviewView(mockView, {} as any, cancellationToken);
-            expect(mockView.webview.options.enableScripts).toBe(true);
-            expect(mockView.webview.options.localResourceRoots).toContainEqual(mockContext.extensionUri);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, cancellationToken);
+            expect(mockView.webview!.options!.enableScripts).toBe(true);
+            expect(mockView.webview!.options!.localResourceRoots).toContainEqual(mockContext.extensionUri);
         });
 
         it('injects HTML into webview', () => {
-            provider.resolveWebviewView(mockView, {} as any, cancellationToken);
-            expect(mockView.webview.html).toBe('<html></html>');
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, cancellationToken);
+            expect(mockView.webview!.html).toBe('<html></html>');
         });
 
         it('clears view reference on dispose', () => {
-            provider.resolveWebviewView(mockView, {} as any, cancellationToken);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, cancellationToken);
             const disposeCallback = vi.mocked(mockView.onDidDispose).mock.calls[0][0];
             
             disposeCallback();
             
-            provider.postMessage({ type: 'test' } as any);
-            expect(mockView.webview.postMessage).not.toHaveBeenCalled();
+            provider.postMessage({ type: 'expandAll' });
+            expect(mockView.webview!.postMessage).not.toHaveBeenCalled();
         });
 
         it('delegates messages to ipcRouter', async () => {
-            provider.resolveWebviewView(mockView, {} as any, cancellationToken);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, cancellationToken);
             const messageHandler = vi.mocked(mockView.webview.onDidReceiveMessage).mock.calls[0][0];
             
             const message = { type: IpcMessageId.READY };
@@ -133,16 +151,16 @@ describe('LLMBabysitterViewProvider', () => {
         });
 
         it('handles router errors gracefully', async () => {
-            provider.resolveWebviewView(mockView, {} as any, cancellationToken);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, cancellationToken);
             const messageHandler = vi.mocked(mockView.webview.onDidReceiveMessage).mock.calls[0][0];
             
             const error = new Error('boom');
             vi.mocked(mockRouter.handleMessage).mockRejectedValue(error);
             
-            await messageHandler({ type: 'ready' } as any);
+            await messageHandler({ type: 'ready' } as unknown as WebviewMessage);
             
             expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('boom'));
-            expect(mockView.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ 
+            expect(mockView.webview!.postMessage).toHaveBeenCalledWith(expect.objectContaining({ 
                 type: 'statusUpdate', 
                 payload: expect.objectContaining({ status: 'error' }) 
             }));
@@ -151,10 +169,10 @@ describe('LLMBabysitterViewProvider', () => {
 
     describe('sendInitialState', () => {
         it('assembles full AppState from workspaceState', async () => {
-            provider.resolveWebviewView(mockView, {} as any, {} as any);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, {} as unknown as vscode.CancellationToken);
             
             // Setup files so getSavedSelectionClean passes
-            (vscode.workspace as any).setMockFile('/fake/src/main.ts', 'content');
+            (vscode.workspace as unknown as { setMockFile: (p: string, c: string) => void }).setMockFile('/fake/src/main.ts', 'content');
 
             vi.mocked(mockContext.workspaceState.get).mockImplementation((key: string) => {
                 if (key === 'llm-babysitter.selected-files') { return ['src/main.ts']; }
@@ -164,7 +182,7 @@ describe('LLMBabysitterViewProvider', () => {
             
             await provider.sendInitialState();
             
-            expect(mockView.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            expect(mockView.webview!.postMessage).toHaveBeenCalledWith(expect.objectContaining({
                 type: 'initState',
                 payload: expect.objectContaining({
                     selectedFiles: ['src/main.ts'],
@@ -174,12 +192,12 @@ describe('LLMBabysitterViewProvider', () => {
         });
 
         it('handles missing or invalid state gracefully', async () => {
-            provider.resolveWebviewView(mockView, {} as any, {} as any);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, {} as unknown as vscode.CancellationToken);
             vi.mocked(mockContext.workspaceState.get).mockReturnValue(undefined);
             
             await provider.sendInitialState();
             
-            const payload = vi.mocked(mockView.webview.postMessage).mock.calls[0][0].payload;
+            const payload = vi.mocked(mockView.webview!.postMessage).mock.calls[0][0].payload;
             expect(payload.selectedFiles).toEqual([]);
             expect(payload.lastPrePromptId).toBe(null);
         });
@@ -199,7 +217,7 @@ describe('LLMBabysitterViewProvider', () => {
 
     describe('UI Actions (postMessage wrappers)', () => {
         beforeEach(() => {
-            provider.resolveWebviewView(mockView, {} as any, {} as any);
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, {} as unknown as vscode.CancellationToken);
         });
 
         it('sendStatus posts statusUpdate', () => {

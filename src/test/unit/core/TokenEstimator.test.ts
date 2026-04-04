@@ -9,7 +9,7 @@ describe('TokenEstimator Unit Tests', () => {
     
     it('should return 0 for empty or null strings', () => {
         expect(TokenEstimator.estimate('')).toBe(0);
-        expect(TokenEstimator.estimate(null as any)).toBe(0);
+        expect(TokenEstimator.estimate(null as unknown as string)).toBe(0);
     });
 
     it('should correctly round up the token count', () => {

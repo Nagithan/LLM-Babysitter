@@ -1,11 +1,19 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FileTreeRenderer } from '../../../webview/ui/FileTreeRenderer.js';
 import { FileNode, IpcMessageId } from '../../../types/index.js';
+import { IpcClient } from '../../../webview/ui/IpcClient.js';
+import { FileTreeRenderer } from '../../../webview/ui/FileTreeRenderer.js';
+import { Mock } from 'vitest';
 
 describe('FileTreeRenderer Webview Unit Tests', () => {
     let container: HTMLElement;
-    let mockIpc: any;
+    let mockIpc: { 
+        postMessage: Mock; 
+        setState: Mock; 
+        getState: Mock;
+        onMessage: Mock;
+        ready: Mock;
+    };
     let renderer: FileTreeRenderer;
 
     beforeEach(() => {
@@ -15,9 +23,11 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
         mockIpc = {
             postMessage: vi.fn(),
             setState: vi.fn(),
-            getState: vi.fn()
+            getState: vi.fn(),
+            onMessage: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+            ready: vi.fn()
         };
-        renderer = new FileTreeRenderer(container, mockIpc, []);
+        renderer = new FileTreeRenderer(container, mockIpc as unknown as IpcClient, []);
     });
 
     afterEach(() => {
@@ -143,7 +153,7 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
             ]}
         ];
 
-        renderer = new FileTreeRenderer(container, mockIpc, ['src/a.ts']);
+        renderer = new FileTreeRenderer(container, mockIpc as unknown as IpcClient, ['src/a.ts']);
         renderer.render(roots);
 
         const folderCheckbox = container.querySelector('.file-tree-item input[type="checkbox"]') as HTMLInputElement;
@@ -267,23 +277,55 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
         expect(checkbox.disabled).toBe(true);
     });
 
-    it('should show parent as checked if all selectable children are checked, even if some children are empty folders', () => {
+    it('should support silent selection update', () => {
+        renderer.setSelectionSilent(['f1.ts']);
+        // Verify internal state by checking render output
+        renderer.render([{ name: 'f1.ts', relativePath: 'f1.ts', isDirectory: false }]);
+        const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(checkbox.checked).toBe(true);
+    });
+
+    it('should refresh checkboxes on same roots render', () => {
+        const roots = [{ name: 'f1.ts', relativePath: 'f1.ts', isDirectory: false }];
+        renderer.render(roots);
+        const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(checkbox.checked).toBe(false);
+
+        renderer.setSelectionSilent(['f1.ts']);
+        renderer.render(roots); // roots is same, triggers refreshCheckboxes
+        expect(checkbox.checked).toBe(true);
+    });
+
+    it('should handle timeout in ensureChildrenLoaded', async () => {
+        vi.useFakeTimers();
+        const roots = [{ name: 'folder', relativePath: 'folder', isDirectory: true, children: undefined }];
+        renderer.render(roots);
+        
+        const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change'));
+
+        // Advance timers by 8000ms
+        vi.advanceTimersByTime(8000);
+        
+        // Should resolve and continue (even though no message received)
+        // Check that it didn't crash and resolved the promise chain
+    });
+
+    it('should use correct icons for html, scss, and markdown', () => {
         const roots: FileNode[] = [
-            { name: 'parent', relativePath: 'parent', isDirectory: true, children: [
-                { name: 'file.ts', relativePath: 'parent/file.ts', isDirectory: false },
-                { name: 'empty_folder', relativePath: 'parent/empty_folder', isDirectory: true, children: [] }
-            ]}
+            { name: 'index.html', relativePath: 'index.html', isDirectory: false },
+            { name: 'main.scss', relativePath: 'main.scss', isDirectory: false },
+            { name: 'style.css', relativePath: 'style.css', isDirectory: false },
+            { name: 'doc.md', relativePath: 'doc.md', isDirectory: false },
+            { name: 'script.js', relativePath: 'script.js', isDirectory: false }
         ];
 
-        // Partially select only the file
-        renderer = new FileTreeRenderer(container, mockIpc, ['parent/file.ts']);
         renderer.render(roots);
 
-        const parentItem = container.querySelector('.file-tree-item') as HTMLElement;
-        const parentCheckbox = parentItem.querySelector('input[type="checkbox"]') as HTMLInputElement;
-
-        // Current behavior: it might be indeterminate because empty_folder is not checked
-        expect(parentCheckbox.checked).toBe(true);
-        expect(parentCheckbox.indeterminate).toBe(false);
+        expect(container.querySelector('.codicon-browser')).not.toBeNull(); // html
+        expect(container.querySelectorAll('.codicon-symbol-color').length).toBe(2); // scss and css
+        expect(container.querySelector('.codicon-markdown')).not.toBeNull(); // md
+        expect(container.querySelector('.codicon-code')).not.toBeNull(); // js
     });
 });

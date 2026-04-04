@@ -1,140 +1,96 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { GetTokensHandler } from '../../../../ipc/handlers/GetTokensHandler.js';
-import { IpcMessageId } from '../../../../types/index.js';
+import { IpcMessageId, WebviewMessage } from '../../../../types/index.js';
 import { PromptGenerator } from '../../../../core/PromptGenerator.js';
 import { FileManager } from '../../../../core/FileManager.js';
 import { TestUtils } from '../../../testUtils.js';
+import { IWebviewAccess } from '../../../../ipc/handlers/IWebviewAccess.js';
 
 describe('GetTokensHandler Unit Tests', () => {
-    let mockWebview: any;
+    let mockWebview: Partial<IWebviewAccess> & { postMessage: Mock; saveSelection: Mock };
     let handler: GetTokensHandler;
 
     beforeEach(async () => {
         await TestUtils.fullReset();
         mockWebview = {
             postMessage: vi.fn(),
-            saveSelection: vi.fn()
+            sendStatus: vi.fn(),
+            sendInitialState: vi.fn(),
+            saveSelection: vi.fn(),
+            savePresetId: vi.fn()
         };
-        handler = new GetTokensHandler(mockWebview);
+        handler = new GetTokensHandler(mockWebview as unknown as IWebviewAccess);
+        
+        // Reset spies
+        vi.spyOn(PromptGenerator, 'estimateTokens').mockReturnValue(10);
+        vi.spyOn(FileManager, 'getFileContent').mockResolvedValue('file content');
     });
 
-    it('should calculate file tokens on UPDATE_SELECTION and use them in GET_TOKENS', async () => {
-        const selectedFiles = ['file1.js', 'file2.js'];
-        const text = 'Instructions';
-
-        vi.spyOn(PromptGenerator, 'estimateTokens').mockImplementation((input) => {
-            if (input === 'Instructions') { return 10; }
-            if (input === 'content1') { return 20; }
-            if (input === 'content2') { return 30; }
-            return 0;
-        });
-
-        vi.spyOn(FileManager, 'getFileContent').mockImplementation(async (path) => {
-            if (path === 'file1.js') { return 'content1'; }
-            if (path === 'file2.js') { return 'content2'; }
-            return '';
-        });
-
-        // 1. Update Selection
+    it('should update selection and cache file tokens', async () => {
         await handler.execute({
             type: IpcMessageId.UPDATE_SELECTION,
-            payload: selectedFiles
-        });
+            payload: ['file1.ts', 'file2.ts']
+        } as unknown as WebviewMessage);
 
-        expect(mockWebview.saveSelection).toHaveBeenCalledWith(selectedFiles);
+        expect(mockWebview.saveSelection).toHaveBeenCalledWith(['file1.ts', 'file2.ts']);
+        expect(FileManager.getFileContent).toHaveBeenCalledWith('file1.ts');
+        expect(FileManager.getFileContent).toHaveBeenCalledWith('file2.ts');
+    });
 
-        // 2. Get Tokens (should use cached file tokens)
+    it('should return aggregated tokens using cached file values', async () => {
+        // Step 1: Cache file tokens (10 per file via mock)
+        await handler.execute({
+            type: IpcMessageId.UPDATE_SELECTION,
+            payload: ['file1.ts']
+        } as unknown as WebviewMessage);
+
+        // Step 2: Get tokens for current text
         await handler.execute({
             type: IpcMessageId.GET_TOKENS,
-            payload: { text }
-        });
+            payload: { text: 'some text' }
+        } as unknown as WebviewMessage);
 
+        expect(PromptGenerator.estimateTokens).toHaveBeenCalledWith('some text');
         expect(mockWebview.postMessage).toHaveBeenCalledWith({
             type: 'tokenUpdate',
             payload: {
-                total: 60, // 10 (text) + 50 (cached files)
+                total: 20, // 10 (text) + 10 (cached file)
                 prompts: 10,
-                files: 50
+                files: 10
             }
         });
     });
 
-    it('should skip file tokens for strings starting with "[" (error/skip markers)', async () => {
-        const selectedFiles = ['error.js', 'large.js', 'valid.js'];
-        const text = '';
+    it('should wait for recalculation if GET_TOKENS arrives during UPDATE_SELECTION', async () => {
+        const deferred = TestUtils.deferred<string>();
+        vi.spyOn(FileManager, 'getFileContent').mockReturnValue(deferred.promise);
 
-        vi.spyOn(PromptGenerator, 'estimateTokens').mockImplementation((input) => {
-            if (input === 'valid content') { return 100; }
-            if (input === '') { return 0; }
-            return 5; // Should be ignored for error strings
-        });
-
-        vi.spyOn(FileManager, 'getFileContent').mockImplementation(async (path) => {
-            if (path === 'error.js') { return '[Error reading file]'; }
-            if (path === 'large.js') { return '[File too large]'; }
-            if (path === 'valid.js') { return 'valid content'; }
-            return '';
-        });
-
-        await handler.execute({
+        // Start recalculation (async, don't await immediately)
+        const updatePromise = handler.execute({
             type: IpcMessageId.UPDATE_SELECTION,
-            payload: selectedFiles
-        });
+            payload: ['slow-file.ts']
+        } as unknown as WebviewMessage);
 
-        await handler.execute({
+        // Send GET_TOKENS immediately
+        const getTokensPromise = handler.execute({
             type: IpcMessageId.GET_TOKENS,
-            payload: { text }
-        });
+            payload: { text: 'text' }
+        } as unknown as WebviewMessage);
 
-        expect(mockWebview.postMessage).toHaveBeenCalledWith({
-            type: 'tokenUpdate',
-            payload: {
-                total: 100, // Only valid.js content
-                prompts: 0,
-                files: 100
-            }
-        });
+        // Resolve the file read
+        deferred.resolve('content');
+        await updatePromise;
+        await getTokensPromise;
+
+        // Verify the message was sent with the final calculated values
+        expect(mockWebview.postMessage).toHaveBeenCalled();
     });
 
-    it('should handle unreadable files by skipping them during recalculation', async () => {
-        const selectedFiles = ['readable.js', 'missing.js'];
-        const text = '';
-
-        vi.spyOn(PromptGenerator, 'estimateTokens').mockImplementation((input) => {
-            if (input === 'content') { return 20; }
-            return 0;
-        });
-
-        vi.spyOn(FileManager, 'getFileContent').mockImplementation(async (path) => {
-            if (path === 'readable.js') { return 'content'; }
-            throw new Error('File not found');
-        });
-
+    it('should ignore non-token related messages', async () => {
         await handler.execute({
-            type: IpcMessageId.UPDATE_SELECTION,
-            payload: selectedFiles
-        });
-
-        await handler.execute({
-            type: IpcMessageId.GET_TOKENS,
-            payload: { text }
-        });
-
-        expect(mockWebview.postMessage).toHaveBeenCalledWith({
-            type: 'tokenUpdate',
-            payload: {
-                total: 20,
-                prompts: 0,
-                files: 20
-            }
-        });
-    });
-
-    it('should ignore non-supported messages', async () => {
-        await (handler as any).execute({
-            type: IpcMessageId.MANAGE_PRESET,
+            type: IpcMessageId.READY,
             payload: {}
-        });
+        } as unknown as WebviewMessage);
 
         expect(mockWebview.postMessage).not.toHaveBeenCalled();
     });

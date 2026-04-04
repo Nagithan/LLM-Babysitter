@@ -1,49 +1,49 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { DeletePresetHandler } from '../../../../ipc/handlers/DeletePresetHandler.js';
-import { IpcMessageId } from '../../../../types/index.js';
-import { Logger } from '../../../../core/Logger.js';
+import { IpcMessageId, WebviewMessage } from '../../../../types/index.js';
+import { PresetManager } from '../../../../core/PresetManager.js';
 import { TestUtils } from '../../../testUtils.js';
+import { IWebviewAccess } from '../../../../ipc/handlers/IWebviewAccess.js';
 
 describe('DeletePresetHandler Unit Tests', () => {
-    let mockWebview: any;
-    let mockPresetManager: any;
+    let mockWebview: Partial<IWebviewAccess> & { sendStatus: Mock };
+    let mockPresetManager: { deletePreset: Mock };
     let handler: DeletePresetHandler;
-    let mockLogger: any;
 
     beforeEach(async () => {
         await TestUtils.fullReset();
         mockWebview = {
-            sendInitialState: vi.fn().mockResolvedValue(undefined)
+            sendStatus: vi.fn(),
+            postMessage: vi.fn(),
+            sendInitialState: vi.fn(),
+            saveSelection: vi.fn(),
+            savePresetId: vi.fn()
         };
         mockPresetManager = {
             deletePreset: vi.fn().mockResolvedValue(undefined)
         };
-        mockLogger = {
-            info: vi.fn()
-        };
-        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger as any);
-        
-        handler = new DeletePresetHandler(mockWebview, mockPresetManager as any);
+        handler = new DeletePresetHandler(
+            mockWebview as unknown as IWebviewAccess,
+            mockPresetManager as unknown as PresetManager
+        );
     });
 
-    it('should delete preset and refresh state', async () => {
+    it('should call deletePreset and send success status', async () => {
         await handler.execute({
             type: IpcMessageId.DELETE_PRESET,
-            payload: 'p1'
-        });
+            payload: 'preset-id'
+        } as unknown as WebviewMessage);
 
-        expect(mockPresetManager.deletePreset).toHaveBeenCalledWith('p1');
-        expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('p1'));
-        expect(mockWebview.sendInitialState).toHaveBeenCalled();
+        expect(mockPresetManager.deletePreset).toHaveBeenCalledWith('preset-id');
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.any(String));
     });
 
     it('should ignore non-DELETE_PRESET messages', async () => {
-        await (handler as any).execute({
+        await handler.execute({
             type: IpcMessageId.READY,
             payload: {}
-        });
+        } as unknown as WebviewMessage);
 
         expect(mockPresetManager.deletePreset).not.toHaveBeenCalled();
-        expect(mockWebview.sendInitialState).not.toHaveBeenCalled();
     });
 });

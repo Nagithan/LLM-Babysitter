@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
+import { MockWorkspace } from '../../mocks/vscode.js';
 import { PresetManager } from '../../../core/PresetManager.js';
 import { LocaleManager } from '../../../i18n/LocaleManager.js';
 import { Preset } from '../../../types/index.js';
 import { TestUtils } from '../../testUtils.js';
 
+import { Mock } from 'vitest';
+
 describe('PresetManager Unit Tests', () => {
-    let mockContext: any;
+    let mockContext: { globalState: { get: Mock; update: Mock }; globalStorageUri: vscode.Uri };
     let manager: PresetManager;
     const STORAGE_PATH = '/fake/storage/user-presets.json';
 
@@ -21,7 +24,7 @@ describe('PresetManager Unit Tests', () => {
             globalStorageUri: vscode.Uri.file('/fake/storage')
         };
 
-        manager = new PresetManager(mockContext);
+        manager = new PresetManager(mockContext as unknown as vscode.ExtensionContext);
         
         // Mock LocaleManager to avoid translation issues in tests
         vi.spyOn(LocaleManager, 'getTranslations').mockReturnValue({
@@ -73,7 +76,7 @@ describe('PresetManager Unit Tests', () => {
     describe('readUserPresets', () => {
         it('should return cached presets if available', async () => {
             const presets: Preset[] = [{ id: '1', name: 'P1', content: 'C1', type: 'prePrompt' }];
-            (vscode.workspace as any).setMockFile(STORAGE_PATH, JSON.stringify(presets));
+            (vscode.workspace as unknown as MockWorkspace).setMockFile(STORAGE_PATH, JSON.stringify(presets));
 
             // First call reads from disk
             await manager.load();
@@ -85,7 +88,7 @@ describe('PresetManager Unit Tests', () => {
         });
 
         it('should handle corrupted JSON by returning empty array', async () => {
-            (vscode.workspace as any).setMockFile(STORAGE_PATH, 'invalid-json');
+            (vscode.workspace as unknown as MockWorkspace).setMockFile(STORAGE_PATH, 'invalid-json');
             
             await manager.load();
             
@@ -97,7 +100,7 @@ describe('PresetManager Unit Tests', () => {
 
     describe('savePreset', () => {
         it('should add a new preset and persist to disk', async () => {
-            (vscode.workspace as any).setMockFile(STORAGE_PATH, '[]');
+            (vscode.workspace as unknown as MockWorkspace).setMockFile(STORAGE_PATH, '[]');
             const newPreset: Preset = { id: 'new-1', name: 'New', content: 'Content', type: 'instruction' };
 
             await manager.savePreset(newPreset);
@@ -109,7 +112,7 @@ describe('PresetManager Unit Tests', () => {
 
         it('should update an existing preset by ID', async () => {
             const existing: Preset = { id: 'p1', name: 'Old', content: 'Old content', type: 'prePrompt' };
-            (vscode.workspace as any).setMockFile(STORAGE_PATH, JSON.stringify([existing]));
+            (vscode.workspace as unknown as MockWorkspace).setMockFile(STORAGE_PATH, JSON.stringify([existing]));
             
             const updated: Preset = { ...existing, name: 'Updated' };
             await manager.savePreset(updated);
@@ -125,7 +128,7 @@ describe('PresetManager Unit Tests', () => {
         it('should remove preset and persist changes', async () => {
             const p1: Preset = { id: 'p1', name: 'P1', content: 'C1', type: 'prePrompt' };
             const p2: Preset = { id: 'p2', name: 'P2', content: 'C2', type: 'instruction' };
-            (vscode.workspace as any).setMockFile(STORAGE_PATH, JSON.stringify([p1, p2]));
+            (vscode.workspace as unknown as MockWorkspace).setMockFile(STORAGE_PATH, JSON.stringify([p1, p2]));
 
             await manager.deletePreset('p1');
 
@@ -141,6 +144,43 @@ describe('PresetManager Unit Tests', () => {
             const presets = manager.getPresets();
             expect(presets.length).toBeGreaterThan(0);
             expect(presets.some(p => p.id.startsWith('built-in'))).toBe(true);
+        });
+    });
+
+    describe('Error Handling (Catch Blocks)', () => {
+        it('should handle migration failure gracefully', async () => {
+            const legacyPresets: Preset[] = [{ id: 'l1', name: 'L', content: 'C', type: 'prePrompt' }];
+            vi.mocked(mockContext.globalState.get).mockReturnValue(legacyPresets);
+            
+            // Force createDirectory to fail
+            vi.mocked(vscode.workspace.fs.createDirectory).mockRejectedValue(new Error('Migration Error'));
+            
+            // Should not throw, just log the error internally
+            await manager.load();
+            
+            // Check that globalState wasn't cleared if it failed early
+            expect(mockContext.globalState.update).not.toHaveBeenCalled();
+        });
+
+        it('should return empty array if storage file is missing', async () => {
+            // No file set in mock FS
+            const presets = await (manager as unknown as { readUserPresets: () => Promise<Preset[]> }).readUserPresets();
+            expect(presets).toEqual([]);
+        });
+
+        it('should throw if writeUserPresets fails', async () => {
+            vi.mocked(vscode.workspace.fs.writeFile).mockRejectedValue(new Error('Disk Full'));
+            const p: Preset = { id: 'p1', name: 'P', content: 'C', type: 'prePrompt' };
+            
+            await expect(manager.savePreset(p)).rejects.toThrow('Disk Full');
+        });
+
+        it('should validate JSON structure in readUserPresets', async () => {
+            // File contains something that is not an array
+            (vscode.workspace as unknown as MockWorkspace).setMockFile(STORAGE_PATH, JSON.stringify({ not: "an array" }));
+            
+            const presets = await (manager as unknown as { readUserPresets: () => Promise<Preset[]> }).readUserPresets();
+            expect(presets).toEqual([]);
         });
     });
 });

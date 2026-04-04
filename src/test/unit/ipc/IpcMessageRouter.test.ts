@@ -5,7 +5,7 @@ import { Logger } from '../../../core/Logger.js';
 
 describe('IpcMessageRouter Unit Tests', () => {
     let router: IpcMessageRouter;
-    let mockLogger: any;
+    let mockLogger: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -13,7 +13,7 @@ describe('IpcMessageRouter Unit Tests', () => {
             error: vi.fn(),
             info: vi.fn()
         };
-        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger);
+        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger as unknown as Logger);
         router = new IpcMessageRouter();
     });
 
@@ -50,7 +50,7 @@ describe('IpcMessageRouter Unit Tests', () => {
         router.register(IpcMessageId.READY, h2);
 
         const message = { type: IpcMessageId.READY };
-        await router.handleMessage(message as any);
+        await router.handleMessage(message as unknown as WebviewMessage);
         
         expect(h2.execute).toHaveBeenCalled();
         expect(h1.execute).not.toHaveBeenCalled();
@@ -63,11 +63,25 @@ describe('IpcMessageRouter Unit Tests', () => {
         router.register(IpcMessageId.READY, h1);
         router.register(IpcMessageId.SAVE_PRESET, h2);
 
-        await router.handleMessage({ type: IpcMessageId.READY } as any);
+        await router.handleMessage({ type: IpcMessageId.READY } as unknown as WebviewMessage);
         expect(h1.execute).toHaveBeenCalled();
         expect(h2.execute).not.toHaveBeenCalled();
 
-        await router.handleMessage({ type: IpcMessageId.SAVE_PRESET, payload: {} } as any);
+        await router.handleMessage({ type: IpcMessageId.SAVE_PRESET, payload: {} } as unknown as WebviewMessage);
         expect(h2.execute).toHaveBeenCalled();
+    });
+
+    it('should throw "Handler [type] execution failed" when handler rejects', async () => {
+        const failingHandler = {
+            execute: vi.fn().mockRejectedValue(new Error('simulated crash'))
+        };
+
+        router.register(IpcMessageId.READY, failingHandler);
+
+        const message: WebviewMessage = {
+            type: IpcMessageId.READY
+        };
+
+        await expect(router.handleMessage(message)).rejects.toThrow('Handler [ready] execution failed: simulated crash');
     });
 });

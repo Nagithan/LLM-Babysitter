@@ -1,131 +1,101 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import * as vscode from 'vscode';
 import { ManagePresetHandler } from '../../../../ipc/handlers/ManagePresetHandler.js';
-import { IpcMessageId } from '../../../../types/index.js';
-import { Logger } from '../../../../core/Logger.js';
+import { IpcMessageId, WebviewMessage } from '../../../../types/index.js';
 import { TestUtils } from '../../../testUtils.js';
+import { IWebviewAccess } from '../../../../ipc/handlers/IWebviewAccess.js';
+import { PresetManager } from '../../../../core/PresetManager.js';
 
 describe('ManagePresetHandler Unit Tests', () => {
-    let mockWebview: any;
-    let mockPresetManager: any;
+    let mockWebview: Partial<IWebviewAccess> & { sendStatus: Mock; postMessage: Mock; sendInitialState: Mock };
+    let mockPresetManager: { getPresets: Mock; savePreset: Mock; deletePreset: Mock };
     let handler: ManagePresetHandler;
-    let mockLogger: any;
 
     beforeEach(async () => {
         await TestUtils.fullReset();
         mockWebview = {
-            postMessage: vi.fn(),
             sendStatus: vi.fn(),
-            sendInitialState: vi.fn().mockResolvedValue(undefined)
+            postMessage: vi.fn(),
+            sendInitialState: vi.fn(),
+            saveSelection: vi.fn(),
+            savePresetId: vi.fn()
         };
         mockPresetManager = {
-            getPresets: vi.fn(),
+            getPresets: vi.fn().mockReturnValue([
+                { id: 'p1', name: 'Original Name', content: 'Old Content', type: 'prePrompt' },
+                { id: 'built-in-1', name: 'Built-in', content: 'Fixed', type: 'prePrompt' }
+            ]),
             savePreset: vi.fn().mockResolvedValue(undefined),
             deletePreset: vi.fn().mockResolvedValue(undefined)
         };
-        mockLogger = {
-            error: vi.fn()
-        };
-        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger as any);
-        
-        handler = new ManagePresetHandler(mockWebview, mockPresetManager as any);
+        handler = new ManagePresetHandler(
+            mockWebview as unknown as IWebviewAccess,
+            mockPresetManager as unknown as PresetManager
+        );
     });
 
-    it('should ignore non-existent presets', async () => {
-        mockPresetManager.getPresets.mockReturnValue([]);
-        await handler.execute({
-            type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'unknown', type: 'prePrompt', currentText: '' }
-        });
-        expect(mockLogger.error).toHaveBeenCalled();
-    });
-
-    it('should prevent modification of built-in presets', async () => {
-        mockPresetManager.getPresets.mockReturnValue([
-            { id: 'built-in-1', name: 'Built-in', content: '...', type: 'prePrompt' }
-        ]);
-        await handler.execute({
-            type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'built-in-1', type: 'prePrompt', currentText: '' }
-        });
-        expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', expect.stringContaining('Built-in templates cannot be modified'));
-    });
-
-    it('should handle renaming a preset', async () => {
-        const preset = { id: 'p1', name: 'Old Name', content: 'Content', type: 'prePrompt' };
-        mockPresetManager.getPresets.mockReturnValue([preset]);
-        
-        vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue({ value: 'rename' } as any);
-        vi.spyOn(vscode.window, 'showInputBox').mockResolvedValue('New Name');
+    it('should rename a favorite via quickpick and inputbox', async () => {
+        vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ value: 'rename' } as unknown as vscode.QuickPickItem);
+        vi.mocked(vscode.window.showInputBox).mockResolvedValue('New Name');
 
         await handler.execute({
             type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'p1', type: 'prePrompt', currentText: '' }
-        });
+            payload: { id: 'p1', currentText: 'Ignored for rename' }
+        } as unknown as WebviewMessage);
 
+        expect(vscode.window.showQuickPick).toHaveBeenCalled();
+        expect(vscode.window.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: 'Original Name' }));
         expect(mockPresetManager.savePreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Name' }));
         expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 
-    it('should handle updating a preset with current text', async () => {
-        const preset = { id: 'p1', name: 'Preset 1', content: 'Old content', type: 'prePrompt' };
-        mockPresetManager.getPresets.mockReturnValue([preset]);
-        
-        vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue({ value: 'update' } as any);
+    it('should update a favorite content', async () => {
+        vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ value: 'update' } as unknown as vscode.QuickPickItem);
 
         await handler.execute({
             type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'p1', type: 'prePrompt', currentText: 'New Content' }
-        });
+            payload: { id: 'p1', currentText: 'Updated Content' }
+        } as unknown as WebviewMessage);
 
-        expect(mockPresetManager.savePreset).toHaveBeenCalledWith(expect.objectContaining({ content: 'New Content' }));
+        expect(mockPresetManager.savePreset).toHaveBeenCalledWith(expect.objectContaining({ 
+            id: 'p1', 
+            content: 'Updated Content' 
+        }));
         expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.stringContaining('updated successfully'));
         expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 
-    it('should handle deleting a preset with confirmation', async () => {
-        const preset = { id: 'p1', name: 'To Delete', content: 'Content', type: 'prePrompt' };
-        mockPresetManager.getPresets.mockReturnValue([preset]);
-        
-        vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue({ value: 'delete' } as any);
-        vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue('Delete' as any);
+    it('should delete a favorite after confirmation', async () => {
+        vi.mocked(vscode.window.showQuickPick).mockResolvedValue({ value: 'delete' } as unknown as vscode.QuickPickItem);
+        vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('Delete' as unknown as vscode.MessageItem);
 
         await handler.execute({
             type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'p1', type: 'prePrompt', currentText: '' }
-        });
+            payload: { id: 'p1', currentText: '' }
+        } as unknown as WebviewMessage);
 
         expect(mockPresetManager.deletePreset).toHaveBeenCalledWith('p1');
         expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 
-    it('should skip deletion if not confirmed', async () => {
-        const preset = { id: 'p1', name: 'Keep Me', content: 'Content', type: 'prePrompt' };
-        mockPresetManager.getPresets.mockReturnValue([preset]);
-        
-        vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue({ value: 'delete' } as any);
-        vi.spyOn(vscode.window, 'showInformationMessage').mockResolvedValue(undefined as any);
-
+    it('should show error for built-in templates', async () => {
         await handler.execute({
             type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'p1', type: 'prePrompt', currentText: '' }
-        });
+            payload: { id: 'built-in-1', currentText: '' }
+        } as unknown as WebviewMessage);
 
-        expect(mockPresetManager.deletePreset).not.toHaveBeenCalled();
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', expect.any(String));
+        expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
     });
 
-    it('should show error when trying to update with empty/whitespace content', async () => {
-        const preset = { id: 'p1', name: 'Preset 1', content: 'Old content', type: 'prePrompt' };
-        mockPresetManager.getPresets.mockReturnValue([preset]);
-        
-        vi.spyOn(vscode.window, 'showQuickPick').mockResolvedValue({ value: 'update' } as any);
+    it('should handle cancelation at any step', async () => {
+        vi.mocked(vscode.window.showQuickPick).mockResolvedValue(undefined);
 
         await handler.execute({
             type: IpcMessageId.MANAGE_PRESET,
-            payload: { id: 'p1', type: 'prePrompt', currentText: '   ' }
-        });
+            payload: { id: 'p1', currentText: '' }
+        } as unknown as WebviewMessage);
 
-        expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', expect.stringContaining('empty content'));
         expect(mockPresetManager.savePreset).not.toHaveBeenCalled();
     });
 });

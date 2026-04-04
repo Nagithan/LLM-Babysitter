@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
+import { IpcClient } from '../../../webview/ui/IpcClient.js';
 import { StateManager } from '../../../webview/ui/StateManager.js';
 import { TestUtils } from '../../testUtils.js';
 
 describe('StateManager Webview Unit Tests', () => {
-    let mockIpc: any;
+    let mockIpc: { getState: Mock; setState: Mock };
     let manager: StateManager;
 
     beforeEach(async () => {
@@ -13,7 +14,7 @@ describe('StateManager Webview Unit Tests', () => {
             getState: vi.fn().mockReturnValue(undefined),
             setState: vi.fn()
         };
-        manager = new StateManager(mockIpc);
+        manager = new StateManager(mockIpc as unknown as IpcClient);
     });
 
     it('should initialize with default state if persistence is empty', () => {
@@ -50,5 +51,32 @@ describe('StateManager Webview Unit Tests', () => {
 
         expect(manager.getFileTree()).toEqual(mockTree);
         expect(listener).toHaveBeenCalled();
+    });
+
+    it('should initialize with state from IPC if available', () => {
+        const initialState = { 
+            prePrompt: 'from ipc',
+            instruction: '',
+            postPrompt: '',
+            selectedFiles: [],
+            favorites: [],
+            translations: {}
+        };
+        mockIpc.getState.mockReturnValue(initialState);
+        const newManager = new StateManager(mockIpc as unknown as IpcClient);
+        
+        expect(newManager.getState()).toEqual(initialState);
+    });
+
+    it('should notify multiple subscribers', () => {
+        const l1 = vi.fn();
+        const l2 = vi.fn();
+        manager.subscribe(l1);
+        manager.subscribe(l2);
+
+        manager.updateState({ instruction: 'Test' });
+
+        expect(l1).toHaveBeenCalled();
+        expect(l2).toHaveBeenCalled();
     });
 });

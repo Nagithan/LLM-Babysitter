@@ -7,7 +7,7 @@ describe('Logger Unit Tests', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         // Reset Singleton instance for clean tests
-        (Logger as any).instance = undefined;
+        (Logger as unknown as { instance: undefined }).instance = undefined;
     });
 
     it('should be a singleton', () => {
@@ -25,7 +25,7 @@ describe('Logger Unit Tests', () => {
         const logger = Logger.getInstance();
         logger.info('test info');
         
-        const mockChannel = (vscode.window.createOutputChannel as any).mock.results[0].value;
+        const mockChannel = vi.mocked(vscode.window.createOutputChannel).mock.results[0].value;
         expect(mockChannel.info).toHaveBeenCalledWith('test info');
     });
 
@@ -33,7 +33,7 @@ describe('Logger Unit Tests', () => {
         const logger = Logger.getInstance();
         logger.error('critical failure');
         
-        const mockChannel = (vscode.window.createOutputChannel as any).mock.results[0].value;
+        const mockChannel = vi.mocked(vscode.window.createOutputChannel).mock.results[0].value;
         expect(mockChannel.error).toHaveBeenCalledWith('critical failure');
         expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('LLM Babysitter: critical failure');
     });
@@ -42,13 +42,13 @@ describe('Logger Unit Tests', () => {
         const logger = Logger.getInstance();
         logger.show();
         
-        const mockChannel = (vscode.window.createOutputChannel as any).mock.results[0].value;
+        const mockChannel = vi.mocked(vscode.window.createOutputChannel).mock.results[0].value;
         expect(mockChannel.show).toHaveBeenCalled();
     });
 
     it('should use correct log levels in the generic log method', () => {
         const logger = Logger.getInstance();
-        const mockChannel = (vscode.window.createOutputChannel as any).mock.results[0].value;
+        const mockChannel = vi.mocked(vscode.window.createOutputChannel).mock.results[0].value;
 
         logger.log('msg1', 'info');
         expect(mockChannel.info).toHaveBeenCalledWith('msg1');
@@ -58,5 +58,16 @@ describe('Logger Unit Tests', () => {
 
         logger.log('msg3', 'error');
         expect(mockChannel.error).toHaveBeenCalledWith('msg3');
+    });
+
+    it('should log debug and trace messages to the channel', () => {
+        const logger = Logger.getInstance();
+        const mockChannel = vi.mocked(vscode.window.createOutputChannel).mock.results[0].value;
+
+        logger.debug('test debug');
+        expect(mockChannel.debug).toHaveBeenCalledWith('test debug');
+
+        logger.trace('test trace');
+        expect(mockChannel.trace).toHaveBeenCalledWith('test trace');
     });
 });

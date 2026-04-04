@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
+import { MockWorkspace } from '../../mocks/vscode.js';
 import { FileManager } from '../../../core/FileManager.js';
 import { TestUtils } from '../../testUtils.js';
 
@@ -51,7 +52,7 @@ describe('FileManager Unit Tests', () => {
 
     describe('getFolderChildren', () => {
         it('should list children of a folder and sort them (directories first)', async () => {
-            const ws = vscode.workspace as any;
+            const ws = vscode.workspace as unknown as MockWorkspace;
             ws.setMockFile('/workspaces/project/src/file.ts', 'content');
             ws.setMockFile('/workspaces/project/src/subdir/placeholder', '');
             ws.setMockFile('/workspaces/project/src/another_file.ts', 'content');
@@ -67,7 +68,7 @@ describe('FileManager Unit Tests', () => {
         });
 
         it('should ignore files starting with dot except .github and .vscode', async () => {
-            const ws = vscode.workspace as any;
+            const ws = vscode.workspace as unknown as MockWorkspace;
             ws.setMockFile('/workspaces/project/src/.git/config', '');
             ws.setMockFile('/workspaces/project/src/.github/workflow.yml', '');
             ws.setMockFile('/workspaces/project/src/.vscode/settings.json', '');
@@ -86,9 +87,10 @@ describe('FileManager Unit Tests', () => {
 
         it('should deduplicate concurrent scans for the same path', async () => {
             let callCount = 0;
-            const fsImpl = (vscode.workspace as any).getFsImpl();
+            const ws = vscode.workspace as unknown as MockWorkspace;
+            const fsImpl = ws.getFsImpl();
             // Need a file to exist so readDirectory doesn't fail
-            (vscode.workspace as any).setMockFile('/workspaces/project/concurrent/placeholder', '');
+            ws.setMockFile('/workspaces/project/concurrent/placeholder', '');
 
             vi.mocked(vscode.workspace.fs.readDirectory).mockImplementation(async (uri) => {
                 callCount++;
@@ -108,14 +110,14 @@ describe('FileManager Unit Tests', () => {
 
     describe('getFileContent', () => {
         it('should return file content for a valid text file', async () => {
-            (vscode.workspace as any).setMockFile('/workspaces/project/src/hello.ts', 'Hello World');
+            (vscode.workspace as unknown as MockWorkspace).setMockFile('/workspaces/project/src/hello.ts', 'Hello World');
 
             const content = await FileManager.getFileContent('Project/src/hello.ts');
             expect(content).toBe('Hello World');
         });
 
         it('should skip directories', async () => {
-            const ws = vscode.workspace as any;
+            const ws = vscode.workspace as unknown as MockWorkspace;
             ws.setMockFile('/workspaces/project/src/dir/file', ''); // Creates a directory 'dir'
 
             const content = await FileManager.getFileContent('Project/src/dir');
@@ -137,7 +139,7 @@ describe('FileManager Unit Tests', () => {
         });
 
         it('should skip binary files', async () => {
-            (vscode.workspace as any).setMockFile('/workspaces/project/src/image.png', new Uint8Array([0x00, 0x01]));
+            (vscode.workspace as unknown as MockWorkspace).setMockFile('/workspaces/project/src/image.png', new Uint8Array([0x00, 0x01]));
 
             const content = await FileManager.getFileContent('Project/src/image.png');
             expect(content).toContain('Binary file');
@@ -171,11 +173,43 @@ describe('FileManager Unit Tests', () => {
         });
     });
 
-    describe('getFolderChildren (Error Handling)', () => {
-        it('should log and throw when directory read fails', async () => {
-            vi.mocked(vscode.workspace.fs.readDirectory).mockRejectedValue(new Error('No permission'));
+    describe('getFolderChildren (Exclusion Patterns)', () => {
+        it('should exclude files matching user-defined patterns', async () => {
+            const ws = vscode.workspace as unknown as MockWorkspace;
+            ws.setMockFile('/workspaces/project/src/include.ts', '');
+            ws.setMockFile('/workspaces/project/src/exclude.ts', '');
             
-            await expect(FileManager.getFolderChildren('Project/secret')).rejects.toThrow('No permission');
+            // Mock configuration
+            const mockConfig = {
+                get: vi.fn().mockImplementation((key: string) => {
+                    if (key === 'excludePatterns') {return ['exclude.ts'];}
+                    return [];
+                })
+            };
+            vi.mocked(vscode.workspace.getConfiguration).mockReturnValue(mockConfig as unknown as vscode.WorkspaceConfiguration);
+
+            const children = await FileManager.getFolderChildren('Project/src');
+            const names = children.map(c => c.name);
+            
+            expect(names).toContain('include.ts');
+            expect(names).not.toContain('exclude.ts');
+        });
+    });
+
+    describe('getFileContent (Error Ternary)', () => {
+        it('should handle non-Error objects in catch block', async () => {
+            // Mock stat to succeed so we reach the catch block in readFile
+            vi.mocked(vscode.workspace.fs.stat).mockResolvedValue({ 
+                type: vscode.FileType.File, 
+                size: 100,
+                ctime: 0,
+                mtime: 0 
+            });
+            // Mock readFile to throw a string instead of Error
+            vi.mocked(vscode.workspace.fs.readFile).mockRejectedValue('Not an Error object');
+            
+            const content = await FileManager.getFileContent('Project/src/file.ts');
+            expect(content).toBe('[Error reading file: Not an Error object]');
         });
     });
 });

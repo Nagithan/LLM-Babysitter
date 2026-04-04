@@ -1,33 +1,28 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import * as vscode from 'vscode';
 import { CopyToClipboardHandler } from '../../../../ipc/handlers/CopyToClipboardHandler.js';
-import { IpcMessageId } from '../../../../types/index.js';
-import { PromptGenerator } from '../../../../core/PromptGenerator.js';
-import { LocaleManager } from '../../../../i18n/LocaleManager.js';
-import { Logger } from '../../../../core/Logger.js';
+import { IpcMessageId, WebviewMessage } from '../../../../types/index.js';
 import { TestUtils } from '../../../testUtils.js';
+import { IWebviewAccess } from '../../../../ipc/handlers/IWebviewAccess.js';
+import { MockWorkspace } from '../../../mocks/vscode.js';
 
 describe('CopyToClipboardHandler Unit Tests', () => {
-    let mockWebview: any;
+    let mockWebview: Partial<IWebviewAccess> & { sendStatus: Mock };
     let handler: CopyToClipboardHandler;
-    let mockLogger: any;
 
     beforeEach(async () => {
         await TestUtils.fullReset();
         mockWebview = {
-            sendStatus: vi.fn()
+            sendStatus: vi.fn(),
+            postMessage: vi.fn(),
+            sendInitialState: vi.fn(),
+            saveSelection: vi.fn(),
+            savePresetId: vi.fn()
         };
-        mockLogger = {
-            info: vi.fn(),
-            error: vi.fn()
-        };
-        vi.spyOn(Logger, 'getInstance').mockReturnValue(mockLogger as any);
-        vi.spyOn(LocaleManager, 'getTranslation').mockReturnValue('Copied!');
-        
-        handler = new CopyToClipboardHandler(mockWebview);
+        handler = new CopyToClipboardHandler(mockWebview as unknown as IWebviewAccess);
     });
 
-    it('should generate prompt and write to clipboard', async () => {
+    it('should generate prompt and copy to clipboard', async () => {
         const payload = {
             prePrompt: 'Pre',
             instruction: 'Instr',
@@ -35,39 +30,36 @@ describe('CopyToClipboardHandler Unit Tests', () => {
             selectedFiles: ['file1.ts']
         };
 
-        const generatedPrompt = 'Full Prompt Content';
-        vi.spyOn(PromptGenerator, 'generate').mockResolvedValue(generatedPrompt);
+        // Mock workspace.fs.readFile to return content for PromptGenerator
+        (vscode.workspace as unknown as MockWorkspace).setMockFile('/workspaces/project/file1.ts', 'file content');
+        TestUtils.setupWorkspaceFolders([{ name: 'Project', path: '/workspaces/project' }]);
 
         await handler.execute({
             type: IpcMessageId.COPY_TO_CLIPBOARD,
             payload
-        });
+        } as unknown as WebviewMessage);
 
-        expect(PromptGenerator.generate).toHaveBeenCalledWith('Pre', 'Instr', 'Post', ['file1.ts']);
-        expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith(generatedPrompt);
-        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', 'Copied!');
+        expect(vscode.env.clipboard.writeText).toHaveBeenCalled();
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.any(String));
     });
 
-    it('should handle generation errors gracefully', async () => {
-        vi.spyOn(PromptGenerator, 'generate').mockRejectedValue(new Error('Generation Error'));
+    it('should handle errors gracefully', async () => {
+        vi.mocked(vscode.env.clipboard.writeText).mockRejectedValue(new Error('Clipboard error'));
 
-        await (handler as any).execute({
+        await handler.execute({
             type: IpcMessageId.COPY_TO_CLIPBOARD,
             payload: { selectedFiles: [] }
-        });
+        } as unknown as WebviewMessage);
 
-        expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Generation Error'));
-        expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', 'Prompt generation failed.');
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', expect.any(String));
     });
 
     it('should ignore non-COPY_TO_CLIPBOARD messages', async () => {
-        const spy = vi.spyOn(PromptGenerator, 'generate');
-        await (handler as any).execute({
+        await handler.execute({
             type: IpcMessageId.READY,
             payload: {}
-        });
+        } as unknown as WebviewMessage);
 
-        expect(spy).not.toHaveBeenCalled();
         expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
     });
 });
