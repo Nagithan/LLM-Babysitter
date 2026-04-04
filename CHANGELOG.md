@@ -1,6 +1,20 @@
 # Change Log
 
-All notable changes to the "llm-babysitter" extension will be documented in this file.
+## [0.2.0] - 2026-04-05
+
+### Added
+- **Tooltip System**: Implementation of a CSS-only tooltip specifically designed to bypass Electron iframe clipping and macOS focus suppression bugs.
+- **Enhanced Template Interaction**:
+  - Added a "Modified" state for template buttons.
+  - Clicking an active template now clears the input field.
+  - Manual text edits now transition the active template into the "Modified" state instead of clearing its selection entirely.
+
+### Changed
+- **UI Architecture**: Converted all chips and section title handlers to semantic `<button>` elements for improved browser focus handling and accessibility.
+
+### Fixed
+- **Refined Selection Logic**: Template content is now **only** automatically applied during the initial load; **subsequent clearing of fields by the user is respected**.
+
 
 ## [0.1.3] - 2026-04-04
 

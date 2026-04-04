@@ -3,7 +3,7 @@
   "displayName": "LLM Babysitter",
   "description": "Prompt generation with code context for online LLM requests.",
   "publisher": "nagithan",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
