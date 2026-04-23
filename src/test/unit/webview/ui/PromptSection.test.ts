@@ -26,7 +26,7 @@ describe('PromptSection', () => {
         };
         stateManager = { 
             updateState: vi.fn(), 
-            getState: vi.fn().mockReturnValue({ favorites: [], prePrompt: '', instruction: '', postPrompt: '', selectedFiles: [] }),
+            getState: vi.fn().mockReturnValue({ favorites: [], translations: {}, prePrompt: '', instruction: '', postPrompt: '', selectedFiles: [] }),
             subscribe: vi.fn()
         };
 
@@ -71,7 +71,7 @@ describe('PromptSection', () => {
 
     it('should trigger manage preset IPC', () => {
         const favorites: Preset[] = [{ id: 'fav1', name: 'Fav 1', content: 'content', type: 'prePrompt' }];
-        stateManager.getState.mockReturnValue({ favorites });
+        stateManager.getState.mockReturnValue({ favorites, translations: {} });
         
         // Use update to set internal state
         section.update('', favorites, 'fav1');
@@ -110,7 +110,7 @@ describe('PromptSection', () => {
             { id: 'fav1', name: 'Fav 1', content: 'C1', type: 'prePrompt' },
             { id: 'fav2', name: 'Fav 2', content: 'C2', type: 'prePrompt' }
         ];
-        stateManager.getState.mockReturnValue({ favorites });
+        stateManager.getState.mockReturnValue({ favorites, translations: {} });
         section.update('', favorites, null); // Start unselected (0 selected because 2 available)
 
         const container = document.getElementById('favorites-prePrompt')!;
@@ -147,7 +147,7 @@ describe('PromptSection', () => {
 
     it('should toggle selection: second click clears text and deselects', () => {
         const favorites: Preset[] = [{ id: 'fav1', name: 'Fav 1', content: 'C1', type: 'prePrompt' }];
-        stateManager.getState.mockReturnValue({ favorites });
+        stateManager.getState.mockReturnValue({ favorites, translations: {} });
         
         // Initial setup - select it
         section.update('', favorites); // Should auto-select first one if empty and uninitialized
@@ -169,7 +169,7 @@ describe('PromptSection', () => {
 
     it('should enter "Modified" state when text is edited and show save modal on click', () => {
         const favorites: Preset[] = [{ id: 'fav1', name: 'Fav 1', content: 'Original Content', type: 'prePrompt' }];
-        stateManager.getState.mockReturnValue({ favorites });
+        stateManager.getState.mockReturnValue({ favorites, translations: {} });
         
         // 1. Select template
         section.update('', favorites);
@@ -198,5 +198,35 @@ describe('PromptSection', () => {
         
         // Text should NOT have changed (unlike the toggle behavior)
         expect(textarea.value).toBe('Modified Content');
+    });
+
+    it('should keep manage enabled for modified custom favorites', () => {
+        const favorites: Preset[] = [{ id: 'fav1', name: 'Fav 1', content: 'Original Content', type: 'prePrompt' }];
+        stateManager.getState.mockReturnValue({ favorites, translations: {} });
+
+        section.update('', favorites, 'fav1');
+
+        const textarea = document.getElementById('prePrompt') as HTMLTextAreaElement;
+        textarea.value = 'Updated Content';
+        section.update('Updated Content', favorites, 'fav1');
+
+        const manageBtn = document.getElementById('manage-prePrompt') as HTMLButtonElement;
+        expect(manageBtn.disabled).toBe(false);
+
+        manageBtn.click();
+        expect(ipc.postMessage).toHaveBeenCalledWith({
+            type: IpcMessageId.MANAGE_PRESET,
+            payload: { id: 'fav1', type: 'prePrompt', currentText: 'Updated Content' }
+        });
+    });
+
+    it('should disable manage for built-in favorites even when selected', () => {
+        const favorites: Preset[] = [{ id: 'built-in-intro-1', name: 'Built-in', content: 'Builtin', type: 'prePrompt' }];
+        stateManager.getState.mockReturnValue({ favorites, translations: {} });
+
+        section.update('', favorites, 'built-in-intro-1');
+
+        const manageBtn = document.getElementById('manage-prePrompt') as HTMLButtonElement;
+        expect(manageBtn.disabled).toBe(true);
     });
 });

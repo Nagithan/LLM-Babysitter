@@ -11,9 +11,23 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+export interface FileReadResult {
+  kind: 'content' | 'directory' | 'symlink' | 'binary' | 'tooLarge' | 'error';
+  content: string;
+}
+
 export class FileManager {
   private static readonly MAX_FILE_SIZE = 1024 * 1024; // 1MB limit
+  private static readonly HIDDEN_SYSTEM_ENTRIES = new Set(['.git', '.hg', '.svn', '.DS_Store']);
   private static activeScans = new Map<string, Promise<FileNode[]>>();
+
+  private static isDirectory(type: vscode.FileType): boolean {
+    return (type & vscode.FileType.Directory) !== 0;
+  }
+
+  private static isSymbolicLink(type: vscode.FileType): boolean {
+    return (type & vscode.FileType.SymbolicLink) !== 0;
+  }
 
   /**
    * Securely resolves a display path (format: FolderName/relative/path) to a VS Code URI.
@@ -37,8 +51,8 @@ export class FileManager {
     // Resolve the internal URI using the safe joinPath API
     const targetUri = vscode.Uri.joinPath(folder.uri, relativePath);
 
-    // Final verification: ensure the resolved URI is still within the folder's scope
-    // Use canonical paths for comparison to prevent bypasses via symlinks or casing issues
+    // Final verification: ensure the resolved URI is still within the folder's scope.
+    // Symbolic links are rejected later during directory listing and file reads.
     const normalizedTarget = targetUri.toString();
     const normalizedFolder = folder.uri.toString();
     const folderPrefix = normalizedFolder.endsWith('/') ? normalizedFolder : normalizedFolder + '/';
@@ -102,9 +116,10 @@ export class FileManager {
 
       const children: FileNode[] = entries
         .map(([name, type]) => {
-          if (name.startsWith('.') && name !== '.github' && name !== '.vscode') { return null; }
+          if (this.HIDDEN_SYSTEM_ENTRIES.has(name)) { return null; }
+          if (this.isSymbolicLink(type)) { return null; }
 
-          const isDirectory = (type & vscode.FileType.Directory) !== 0;
+          const isDirectory = this.isDirectory(type);
           const childRelativePath = relativePathInFolder ? `${relativePathInFolder}/${name}` : name;
 
           if (ig.ignores(childRelativePath)) {
@@ -137,16 +152,22 @@ export class FileManager {
     }
   }
 
-  public static async getFileContent(displayPath: string): Promise<string> {
+  public static async getFileContent(displayPath: string): Promise<FileReadResult> {
     try {
       const fileUri = this.resolveDisplayPath(displayPath);
       const stats = await vscode.workspace.fs.stat(fileUri);
 
-      if ((stats.type & vscode.FileType.Directory) !== 0) {
-        return '[Selected entry is a directory - skipped]';
+      if (this.isSymbolicLink(stats.type)) {
+        return { kind: 'symlink', content: '[Symbolic link - skipped for security]' };
+      }
+      if (this.isDirectory(stats.type)) {
+        return { kind: 'directory', content: '[Selected entry is a directory - skipped]' };
       }
       if (stats.size > this.MAX_FILE_SIZE) {
-        return `[File too large (${(stats.size / 1024 / 1024).toFixed(2)} MB) - Baby can't swallow this!]`;
+        return {
+          kind: 'tooLarge',
+          content: `[File too large (${(stats.size / 1024 / 1024).toFixed(2)} MB) - Baby can't swallow this!]`
+        };
       }
 
       const data = await vscode.workspace.fs.readFile(fileUri);
@@ -154,18 +175,21 @@ export class FileManager {
       // OPTIMIZATION: BinaryDetector already accepts Uint8Array. 
       // Avoid Buffer.from() which potentially copies memory.
       if (BinaryDetector.isBinary(data)) {
-        return '[Binary file - skipped]';
+        return { kind: 'binary', content: '[Binary file - skipped]' };
       }
 
       // OPTIMIZATION: Use TextDecoder for cleaner, standard UTF-8 conversion of Uint8Array.
-      return new TextDecoder().decode(data);
+      return { kind: 'content', content: new TextDecoder().decode(data) };
     } catch (e) {
       if (e instanceof vscode.FileSystemError && (e.code === 'FileNotFound' || e.code === 'EntryNotFound')) {
         Logger.getInstance().warn(`File not found: ${displayPath}`);
       } else {
         Logger.getInstance().error(`Failed to read file ${displayPath}: ${e}`);
       }
-      return `[Error reading file: ${e instanceof Error ? e.message : e}]`;
+      return {
+        kind: 'error',
+        content: `[Error reading file: ${e instanceof Error ? e.message : e}]`
+      };
     }
   }
 }

@@ -113,6 +113,56 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
         expect(highlight?.textContent).toBe('match');
     });
 
+    it('should progressively search inside unopened lazy-loaded folders', () => {
+        const roots: FileNode[] = [
+            { name: 'Project', relativePath: 'Project', isDirectory: true, children: undefined }
+        ];
+
+        renderer.render(roots);
+        renderer.setFilter('match');
+
+        expect(mockIpc.postMessage).toHaveBeenCalledWith({
+            type: IpcMessageId.EXPAND_FOLDER,
+            payload: 'Project'
+        });
+        expect(container.textContent).toContain('Project');
+
+        roots[0].children = [
+            { name: 'src', relativePath: 'Project/src', isDirectory: true, children: undefined }
+        ];
+        renderer.resolvePendingRequest('Project');
+        renderer.render(roots, true);
+
+        expect(mockIpc.postMessage).toHaveBeenCalledWith({
+            type: IpcMessageId.EXPAND_FOLDER,
+            payload: 'Project/src'
+        });
+        expect(container.textContent).toContain('src');
+
+        roots[0].children[0].children = [
+            { name: 'match.ts', relativePath: 'Project/src/match.ts', isDirectory: false }
+        ];
+        renderer.resolvePendingRequest('Project/src');
+        renderer.render(roots, true);
+
+        expect(container.textContent).toContain('match.ts');
+    });
+
+    it('should show an explicit empty-search state when nothing matches', () => {
+        const roots: FileNode[] = [
+            { name: 'Project', relativePath: 'Project', isDirectory: true, children: [
+                { name: 'src', relativePath: 'Project/src', isDirectory: true, children: [
+                    { name: 'main.ts', relativePath: 'Project/src/main.ts', isDirectory: false }
+                ]}
+            ]}
+        ];
+
+        renderer.render(roots);
+        renderer.setFilter('missing');
+
+        expect(container.textContent).toContain('No files found matching search.');
+    });
+
     it('should handle recursive folder selection and de-selection', async () => {
         const roots: FileNode[] = [
             { name: 'src', relativePath: 'src', isDirectory: true, children: [
@@ -235,6 +285,29 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
         expect(container.textContent).toContain('No files found.');
     });
 
+    it('should expose tree semantics and keyboard navigation for rows', () => {
+        const roots: FileNode[] = [
+            { name: 'folder', relativePath: 'folder', isDirectory: true, children: [
+                { name: 'child.ts', relativePath: 'folder/child.ts', isDirectory: false }
+            ]}
+        ];
+
+        renderer.render(roots);
+
+        const item = container.querySelector('.file-tree-item') as HTMLElement;
+        const header = item.querySelector('.item-header') as HTMLElement;
+
+        expect(container.getAttribute('role')).toBe('tree');
+        expect(header.getAttribute('role')).toBe('treeitem');
+        expect(header.tabIndex).toBe(0);
+
+        header.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        expect(item.classList.contains('expanded')).toBe(true);
+
+        header.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        expect(item.classList.contains('expanded')).toBe(false);
+    });
+
     it('should gray out and disable empty folders that have been expanded', () => {
         const roots: FileNode[] = [
             { name: 'empty', relativePath: 'empty', isDirectory: true, children: [] }
@@ -253,10 +326,60 @@ describe('FileTreeRenderer Webview Unit Tests', () => {
         
         expect(header.classList.contains('disabled')).toBe(true);
         expect(checkbox.disabled).toBe(true);
+        expect(checkbox.checked).toBe(false);
         
         // Clicking should be blocked by our logic
         header.click();
         expect(item.classList.contains('expanded')).toBe(false);
+    });
+
+    it('should consider loaded empty folders non-selectable when computing parent state', () => {
+        const roots: FileNode[] = [
+            { name: 'src', relativePath: 'src', isDirectory: true, children: [
+                { name: 'empty', relativePath: 'src/empty', isDirectory: true, children: [] },
+                { name: 'a.ts', relativePath: 'src/a.ts', isDirectory: false }
+            ]}
+        ];
+
+        renderer = new FileTreeRenderer(container, mockIpc as unknown as IpcClient, ['src/a.ts']);
+        renderer.render(roots);
+
+        const rootCheckbox = container.querySelector('.file-tree-item input[type="checkbox"]') as HTMLInputElement;
+        expect(rootCheckbox.checked).toBe(true);
+        expect(rootCheckbox.indeterminate).toBe(false);
+    });
+
+    it('should request lazy-loaded folders when expand all is triggered', () => {
+        const roots: FileNode[] = [
+            { name: 'folder', relativePath: 'folder', isDirectory: true, children: undefined }
+        ];
+
+        renderer.render(roots);
+        renderer.handleExpandCollapseAll(true, ['folder']);
+
+        expect(mockIpc.postMessage).toHaveBeenCalledWith({
+            type: IpcMessageId.EXPAND_FOLDER,
+            payload: 'folder'
+        });
+    });
+
+    it('should keep expanding newly loaded directories while expand all mode is active', () => {
+        const roots: FileNode[] = [
+            { name: 'folder', relativePath: 'folder', isDirectory: true, children: undefined }
+        ];
+
+        renderer.render(roots);
+        renderer.handleExpandCollapseAll(true, ['folder']);
+        roots[0].children = [
+            { name: 'nested', relativePath: 'folder/nested', isDirectory: true, children: undefined }
+        ];
+
+        renderer.render(roots, true);
+
+        expect(mockIpc.postMessage).toHaveBeenCalledWith({
+            type: IpcMessageId.EXPAND_FOLDER,
+            payload: 'folder/nested'
+        });
     });
 
     it('should gray out folders that appear empty due to filtering', () => {

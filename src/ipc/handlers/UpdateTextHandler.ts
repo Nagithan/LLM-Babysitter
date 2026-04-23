@@ -1,5 +1,6 @@
-import { WebviewMessage } from '../../types/index.js';
+import { WebviewMessage, IpcMessageId } from '../../types/index.js';
 import { IIpcMessageHandler } from './IpcHandler.js';
+import { IWebviewAccess } from './IWebviewAccess.js';
 
 /**
  * Handler for reactive text updates.
@@ -8,7 +9,11 @@ import { IIpcMessageHandler } from './IpcHandler.js';
  * outgoing webview signals are accounted for.
  */
 export class UpdateTextHandler implements IIpcMessageHandler {
-    execute(_message: WebviewMessage): void {
-        // No-op: Host-side tracking not required for stateless prompt generation.
+    constructor(private webview: IWebviewAccess) {}
+
+    execute(message: WebviewMessage): void {
+        if (message.type === IpcMessageId.UPDATE_TEXT) {
+            this.webview.saveText(message.payload.type, message.payload.text);
+        }
     }
 }

@@ -11,6 +11,12 @@ export interface FileEntry {
  * Decoupled from VS Code and local filesystem for 100% deterministic unit testing.
  */
 export class PromptAssembler {
+    private getFence(content: string): string {
+        const runs = content.match(/`+/g) ?? [];
+        const longestRun = runs.reduce((max, run) => Math.max(max, run.length), 0);
+        return '`'.repeat(Math.max(3, longestRun + 1));
+    }
+
     /**
      * Assembles the final prompt string from provided components.
      */
@@ -40,10 +46,11 @@ export class PromptAssembler {
             
             for (const file of files) {
                 const extension = file.relativePath.split('.').pop() || '';
+                const fence = this.getFence(file.content);
                 parts.push(`#### File: ${file.relativePath}`);
-                parts.push('```' + extension);
+                parts.push(fence + extension);
                 parts.push(file.content);
-                parts.push('```\n');
+                parts.push(fence + '\n');
             }
         }
 

@@ -7,6 +7,7 @@ import { LocaleManager } from '../../../i18n/LocaleManager.js';
 import { WebviewHtmlFactory } from '../../../webview/WebviewHtmlFactory.js';
 import { IpcMessageRouter } from '../../../ipc/IpcMessageRouter.js';
 import { Logger } from '../../../core/Logger.js';
+import { GetTokensHandler } from '../../../ipc/handlers/GetTokensHandler.js';
 import { Mock } from 'vitest';
 import { TestUtils } from '../../testUtils.js';
 import { IpcMessageId, WebviewMessage } from '../../../types/index.js';
@@ -168,8 +169,27 @@ describe('LLMBabysitterViewProvider', () => {
     });
 
     describe('sendInitialState', () => {
+        it('preserves tracked prompt text during refresh', async () => {
+            provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, {} as unknown as vscode.CancellationToken);
+            provider.saveText('prePrompt', 'Draft intro');
+            provider.saveText('instruction', 'Draft instruction');
+            provider.saveText('postPrompt', 'Draft outro');
+
+            await provider.sendInitialState();
+
+            expect(mockView.webview!.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'initState',
+                payload: expect.objectContaining({
+                    prePrompt: 'Draft intro',
+                    instruction: 'Draft instruction',
+                    postPrompt: 'Draft outro'
+                })
+            }));
+        });
+
         it('assembles full AppState from workspaceState', async () => {
             provider.resolveWebviewView(mockView as unknown as vscode.WebviewView, {} as unknown as vscode.WebviewViewResolveContext, {} as unknown as vscode.CancellationToken);
+            const recalculateSpy = vi.spyOn(GetTokensHandler.prototype, 'recalculateFileTokens').mockResolvedValue(undefined);
             
             // Setup files so getSavedSelectionClean passes
             (vscode.workspace as unknown as { setMockFile: (p: string, c: string) => void }).setMockFile('/fake/src/main.ts', 'content');
@@ -189,6 +209,9 @@ describe('LLMBabysitterViewProvider', () => {
                     lastPrePromptId: 'p1'
                 })
             }));
+
+            expect(recalculateSpy).toHaveBeenCalledWith(['src/main.ts']);
+            expect(recalculateSpy.mock.invocationCallOrder[0]).toBeLessThan(mockView.webview!.postMessage.mock.invocationCallOrder[0]);
         });
 
         it('handles missing or invalid state gracefully', async () => {

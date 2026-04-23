@@ -31,14 +31,13 @@ export class PromptGenerator {
 
     const results = await Promise.all(
       selectedFiles.map(async (relativePath) => {
-        const content = await FileManager.getFileContent(relativePath);
+        const fileResult = await FileManager.getFileContent(relativePath);
 
-        // Skip directories and failed reads (defensive parity)
-        if (content === '[Selected entry is a directory - skipped]') {
+        if (fileResult.kind === 'directory' || fileResult.kind === 'symlink') {
           return null;
         }
 
-        return { relativePath, content };
+        return { relativePath, content: fileResult.content };
       })
     );
 

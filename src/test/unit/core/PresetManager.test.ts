@@ -30,6 +30,8 @@ describe('PresetManager Unit Tests', () => {
         vi.spyOn(LocaleManager, 'getTranslations').mockReturnValue({
             'preset.name.intro.1': 'Intro 1',
             'template.intro.1': 'Intro content',
+            'preset.name.intro.2': 'Intro 2',
+            'template.intro.2': 'Intro content 2',
             'preset.name.instr.1': 'Instr 1',
             'template.instr.1': 'Instr content',
             'preset.name.instr.2': 'Instr 2',
@@ -40,6 +42,14 @@ describe('PresetManager Unit Tests', () => {
             'template.instr.4': 'Instr content',
             'preset.name.instr.5': 'Instr 5',
             'template.instr.5': 'Instr content',
+            'preset.name.instr.6': 'Instr 6',
+            'template.instr.6': 'Instr content',
+            'preset.name.instr.7': 'Instr 7',
+            'template.instr.7': 'Instr content',
+            'preset.name.instr.8': 'Instr 8',
+            'template.instr.8': 'Instr content',
+            'preset.name.instr.9': 'Instr 9',
+            'template.instr.9': 'Instr content',
             'preset.name.final.1': 'Final 1',
             'template.final.1': 'Final content',
         });
@@ -144,6 +154,16 @@ describe('PresetManager Unit Tests', () => {
             const presets = manager.getPresets();
             expect(presets.length).toBeGreaterThan(0);
             expect(presets.some(p => p.id.startsWith('built-in'))).toBe(true);
+        });
+
+        it('should include the newly added built-in presets', () => {
+            const presets = manager.getPresets();
+
+            expect(presets).toContainEqual(expect.objectContaining({ id: 'built-in-intro-2', name: 'Intro 2', type: 'prePrompt' }));
+            expect(presets).toContainEqual(expect.objectContaining({ id: 'built-in-instr-6', name: 'Instr 6', type: 'instruction' }));
+            expect(presets).toContainEqual(expect.objectContaining({ id: 'built-in-instr-7', name: 'Instr 7', type: 'instruction' }));
+            expect(presets).toContainEqual(expect.objectContaining({ id: 'built-in-instr-8', name: 'Instr 8', type: 'instruction' }));
+            expect(presets).toContainEqual(expect.objectContaining({ id: 'built-in-instr-9', name: 'Instr 9', type: 'instruction' }));
         });
     });
 

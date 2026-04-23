@@ -32,8 +32,10 @@ const mockStateManager = {
 const mockFileTreeRenderer = {
     render: vi.fn(),
     setFilter: vi.fn(),
+    setLabels: vi.fn(),
     setSelectionSilent: vi.fn(),
     resetExpandedPaths: vi.fn(),
+    resolvePendingRequest: vi.fn(),
     handleExpandCollapseAll: vi.fn()
 };
 
@@ -88,10 +90,12 @@ describe('LLMBabysitterUI', () => {
             <button id="deselectAll"></button>
             <button id="copy-clipboard"></button>
             <div id="status-bar"></div>
-            <div id="favorite-modal">
-                <input id="favorite-name" />
-                <button id="confirm-favorite"></button>
-                <button id="cancel-favorite"></button>
+            <div id="favorite-modal" class="overlay">
+                <div class="modal">
+                    <input id="favorite-name" />
+                    <button id="cancel-favorite"></button>
+                    <button id="confirm-favorite"></button>
+                </div>
             </div>
         `;
 
@@ -125,6 +129,7 @@ describe('LLMBabysitterUI', () => {
         const children = [{ name: 'child', relativePath: 'p/child', isDirectory: false }];
         mockStateManager.getFileTree.mockReturnValue([{ relativePath: 'p', children: [] }]);
         handler({ type: 'folderChildren', payload: { parentPath: 'p', children } });
+        expect(mockFileTreeRenderer.resolvePendingRequest).toHaveBeenCalledWith('p');
         expect(mockFileTreeRenderer.render).toHaveBeenCalled();
     });
 
@@ -143,6 +148,8 @@ describe('LLMBabysitterUI', () => {
         handler({ type: 'tokenUpdate', payload: { total: 50000, prompts: 10000, files: 40000 } });
         const count = document.getElementById('token-count')!;
         expect(count.textContent).toContain('50,000');
+        expect(document.getElementById('count-prompts')?.textContent).toContain('10,000');
+        expect(document.getElementById('count-files')?.textContent).toContain('40,000');
     });
 
     it('should handle expandAll and collapseAll', () => {
@@ -207,6 +214,32 @@ describe('LLMBabysitterUI', () => {
             payload: expect.objectContaining({ type: 'prePrompt' })
         });
         vi.runAllTimers();
+        vi.useRealTimers();
+    });
+
+    it('should trap focus in the favorite modal and restore focus on close', () => {
+        vi.useFakeTimers();
+        const trigger = document.getElementById('save-prePrompt') as HTMLButtonElement;
+        const input = document.getElementById('favorite-name') as HTMLInputElement;
+        const cancel = document.getElementById('cancel-favorite') as HTMLButtonElement;
+        const confirm = document.getElementById('confirm-favorite') as HTMLButtonElement;
+
+        trigger.focus();
+        (window as unknown as { showFavoriteModal: (type: string, content: string) => void }).showFavoriteModal('prePrompt', 'Content');
+        vi.advanceTimersByTime(150);
+
+        expect(document.activeElement).toBe(input);
+
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+        expect(document.activeElement).toBe(confirm);
+
+        confirm.focus();
+        confirm.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        expect(document.activeElement).toBe(input);
+
+        cancel.focus();
+        cancel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(document.activeElement).toBe(trigger);
         vi.useRealTimers();
     });
 });

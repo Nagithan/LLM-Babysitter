@@ -17,7 +17,8 @@ describe('DeletePresetHandler Unit Tests', () => {
             postMessage: vi.fn(),
             sendInitialState: vi.fn(),
             saveSelection: vi.fn(),
-            savePresetId: vi.fn()
+            savePresetId: vi.fn(),
+            saveText: vi.fn()
         };
         mockPresetManager = {
             deletePreset: vi.fn().mockResolvedValue(undefined)
@@ -36,6 +37,7 @@ describe('DeletePresetHandler Unit Tests', () => {
 
         expect(mockPresetManager.deletePreset).toHaveBeenCalledWith('preset-id');
         expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.any(String));
+        expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 
     it('should ignore non-DELETE_PRESET messages', async () => {

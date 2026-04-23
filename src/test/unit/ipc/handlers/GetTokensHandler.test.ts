@@ -23,7 +23,10 @@ describe('GetTokensHandler Unit Tests', () => {
         
         // Reset spies
         vi.spyOn(PromptGenerator, 'estimateTokens').mockReturnValue(10);
-        vi.spyOn(FileManager, 'getFileContent').mockResolvedValue('file content');
+        vi.spyOn(FileManager, 'getFileContent').mockResolvedValue({
+            kind: 'content',
+            content: 'file content'
+        });
     });
 
     it('should update selection and cache file tokens', async () => {
@@ -61,8 +64,38 @@ describe('GetTokensHandler Unit Tests', () => {
         });
     });
 
+    it('should count valid file content even when it starts with "["', async () => {
+        vi.mocked(FileManager.getFileContent).mockResolvedValue({
+            kind: 'content',
+            content: '[1, 2, 3]'
+        });
+        vi.mocked(PromptGenerator.estimateTokens).mockImplementation((text: string) => {
+            if (text === '[1, 2, 3]') { return 7; }
+            return 10;
+        });
+
+        await handler.execute({
+            type: IpcMessageId.UPDATE_SELECTION,
+            payload: ['array.json']
+        } as unknown as WebviewMessage);
+
+        await handler.execute({
+            type: IpcMessageId.GET_TOKENS,
+            payload: { text: 'prompt text' }
+        } as unknown as WebviewMessage);
+
+        expect(mockWebview.postMessage).toHaveBeenLastCalledWith({
+            type: 'tokenUpdate',
+            payload: {
+                total: 17,
+                prompts: 10,
+                files: 7
+            }
+        });
+    });
+
     it('should wait for recalculation if GET_TOKENS arrives during UPDATE_SELECTION', async () => {
-        const deferred = TestUtils.deferred<string>();
+        const deferred = TestUtils.deferred<{ kind: 'content'; content: string }>();
         vi.spyOn(FileManager, 'getFileContent').mockReturnValue(deferred.promise);
 
         // Start recalculation (async, don't await immediately)
@@ -78,7 +111,7 @@ describe('GetTokensHandler Unit Tests', () => {
         } as unknown as WebviewMessage);
 
         // Resolve the file read
-        deferred.resolve('content');
+        deferred.resolve({ kind: 'content', content: 'content' });
         await updatePromise;
         await getTokensPromise;
 

@@ -12,6 +12,9 @@ class LLMBabysitterUI {
     private sections: Record<string, PromptSection> = {};
     
     private debouncedSearch: ReturnType<typeof setTimeout> | null = null;
+    private statusTimer: ReturnType<typeof setTimeout> | null = null;
+    private closeFavoriteModal: (() => void) | null = null;
+    private favoriteModalTrigger: HTMLElement | null = null;
 
     constructor() {
         this.fileTreeRenderer = new FileTreeRenderer(
@@ -50,6 +53,7 @@ class LLMBabysitterUI {
                     break;
                 case 'statusUpdate':
                     this.showStatus(message.payload.message, message.payload.status);
+                    this.setCopyBusy(false);
                     break;
                 case 'tokenUpdate':
                     this.updateTokenCounter(message.payload);
@@ -76,27 +80,79 @@ class LLMBabysitterUI {
         document.getElementById('deselectAll')?.addEventListener('click', () => this.handleSelectBatch(false));
         document.getElementById('copy-clipboard')?.addEventListener('click', () => this.handleCopy());
         
-        // Global Modal Logic (simplified)
+        // Global Modal Logic
         (window as unknown as { showFavoriteModal: (type: string, content: string) => void }).showFavoriteModal = (type: string, content: string) => {
+            const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            this.closeFavoriteModal?.();
             const modal = document.getElementById('favorite-modal')!;
+            const dialog = modal.querySelector('.modal') as HTMLElement | null;
+            this.favoriteModalTrigger = previouslyFocused;
             modal.classList.add('visible');
             const input = document.getElementById('favorite-name') as HTMLInputElement;
             input.value = content.substring(0, 30).trim() + (content.length > 30 ? '...' : '');
-            setTimeout(() => input.focus(), 150);
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 150);
 
             const confirm = document.getElementById('confirm-favorite')!;
-            confirm.onclick = () => {
+            const cancel = document.getElementById('cancel-favorite')!;
+            const getFocusableElements = () => {
+                if (!dialog) { return [input, cancel, confirm].filter(Boolean) as HTMLElement[]; }
+                return Array.from(dialog.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                ));
+            };
+            const close = () => {
+                modal.classList.remove('visible');
+                window.removeEventListener('keydown', handleKeydown);
+                this.closeFavoriteModal = null;
+                const trigger = this.favoriteModalTrigger;
+                this.favoriteModalTrigger = null;
+                trigger?.focus();
+            };
+            const save = () => {
                 const name = input.value.trim();
                 if (name) {
                     this.ipc.postMessage({ 
                         type: IpcMessageId.SAVE_PRESET, 
                         payload: { id: Date.now().toString(), name, content, type: type as 'prePrompt' | 'instruction' | 'postPrompt' } 
                     });
-                    modal.classList.remove('visible');
+                    close();
                 }
             };
-            const cancel = document.getElementById('cancel-favorite')!;
-            cancel.onclick = () => modal.classList.remove('visible');
+            const handleKeydown = (event: KeyboardEvent) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    close();
+                } else if (event.key === 'Tab') {
+                    const focusable = getFocusableElements();
+                    if (focusable.length === 0) { return; }
+                    const first = focusable[0];
+                    const last = focusable[focusable.length - 1];
+                    const active = document.activeElement as HTMLElement | null;
+
+                    if (event.shiftKey && active === first) {
+                        event.preventDefault();
+                        last.focus();
+                    } else if (!event.shiftKey && active === last) {
+                        event.preventDefault();
+                        first.focus();
+                    }
+                } else if (event.key === 'Enter' && (event.target === input || event.target === confirm)) {
+                    event.preventDefault();
+                    save();
+                }
+            };
+            confirm.onclick = save;
+            cancel.onclick = close;
+            modal.onclick = (event: MouseEvent) => {
+                if (event.target === modal) {
+                    close();
+                }
+            };
+            window.addEventListener('keydown', handleKeydown);
+            this.closeFavoriteModal = close;
         };
     }
 
@@ -108,6 +164,7 @@ class LLMBabysitterUI {
         const t = state.translations;
         const app = document.getElementById('app')!;
         app.classList.remove('loading');
+        this.applyTranslations(t);
 
         ['prePrompt', 'instruction', 'postPrompt'].forEach(type => {
             const label = document.getElementById(`label-${type}`);
@@ -128,7 +185,67 @@ class LLMBabysitterUI {
         this.updateTokenCount();
     }
 
+    private applyTranslations(t: Record<string, string>) {
+        document.documentElement.lang = t['app.lang'] || 'en';
+
+        const textTargets: Record<string, string> = {
+            'label-files': 'section.files',
+            'copy-label': 'button.copy',
+            'token-label': 'tokens.label',
+            'breakdown-label-prompts': 'tokens.prompts',
+            'breakdown-label-files': 'tokens.files',
+            'modal-title': 'modal.favoriteTitle',
+            'cancel-favorite': 'button.cancel',
+            'confirm-favorite': 'button.save'
+        };
+
+        Object.entries(textTargets).forEach(([id, key]) => {
+            const el = document.getElementById(id);
+            if (el && t[key]) { el.textContent = t[key]; }
+        });
+
+        const fileSearch = document.getElementById('fileSearch') as HTMLInputElement | null;
+        if (fileSearch && t['files.search']) {
+            fileSearch.placeholder = t['files.search'];
+            fileSearch.setAttribute('aria-label', t['files.search']);
+        }
+
+        this.fileTreeRenderer.setLabels({
+            emptyTree: t['files.empty'] || 'No files found.',
+            emptyFilter: t['files.emptySearch'] || 'No files found matching search.',
+            treeAriaLabel: t['files.treeAriaLabel'] || t['section.files'] || 'Workspace file selection tree'
+        });
+
+        const favoriteName = document.getElementById('favorite-name') as HTMLInputElement | null;
+        if (favoriteName && t['modal.favoritePlaceholder']) {
+            favoriteName.placeholder = t['modal.favoritePlaceholder'];
+        }
+
+        const tooltipTargets: Record<string, string> = {
+            'help-prePrompt': 'tooltip.prePrompt',
+            'help-instruction': 'tooltip.instruction',
+            'help-files': 'tooltip.files',
+            'help-postPrompt': 'tooltip.postPrompt',
+            'save-prePrompt': 'button.addFavorite',
+            'save-instruction': 'button.addFavorite',
+            'save-postPrompt': 'button.addFavorite',
+            'manage-prePrompt': 'button.manageFavorite',
+            'manage-instruction': 'button.manageFavorite',
+            'manage-postPrompt': 'button.manageFavorite',
+            'selectAll': 'files.selectAll',
+            'deselectAll': 'files.deselectAll'
+        };
+
+        Object.entries(tooltipTargets).forEach(([id, key]) => {
+            const el = document.getElementById(id);
+            if (!el || !t[key]) { return; }
+            el.dataset.tooltip = t[key];
+            el.setAttribute('aria-label', t[key]);
+        });
+    }
+
     private handleFolderChildren(parentPath: string, children: FileNode[]) {
+        this.fileTreeRenderer.resolvePendingRequest(parentPath);
         const tree = this.stateManager.getFileTree();
         const node = this.findNode(tree, parentPath);
         if (node) {
@@ -162,14 +279,29 @@ class LLMBabysitterUI {
         const container = document.getElementById('token-container');
         const barPrompts = document.getElementById('token-bar-prompts');
         const barFiles = document.getElementById('token-bar-files');
+        const promptsEl = document.getElementById('count-prompts');
+        const filesEl = document.getElementById('count-files');
+        const tokenLimit = 128000;
 
         if (countEl) { countEl.textContent = payload.total.toLocaleString(); }
-        if (barPrompts) { barPrompts.style.width = `${Math.min(100, (payload.prompts / 128000) * 100)}%`; }
-        if (barFiles) { barFiles.style.width = `${Math.min(100, (payload.files / 128000) * 100)}%`; }
+        if (promptsEl) { promptsEl.textContent = payload.prompts.toLocaleString(); }
+        if (filesEl) { filesEl.textContent = payload.files.toLocaleString(); }
+
+        const promptPercent = Math.min(100, (payload.prompts / tokenLimit) * 100);
+        const filePercent = Math.min(Math.max(0, 100 - promptPercent), (payload.files / tokenLimit) * 100);
+        if (barPrompts) {
+            barPrompts.style.width = `${promptPercent}%`;
+            barPrompts.style.flexBasis = `${promptPercent}%`;
+        }
+        if (barFiles) {
+            barFiles.style.width = `${filePercent}%`;
+            barFiles.style.flexBasis = `${filePercent}%`;
+        }
         
         if (container) {
             container.classList.remove('warning', 'danger');
-            if (payload.total >= 128000) { container.classList.add('danger'); }
+            container.setAttribute('aria-label', `${payload.total.toLocaleString()} tokens`);
+            if (payload.total >= tokenLimit) { container.classList.add('danger'); }
             else if (payload.total >= 32000) { container.classList.add('warning'); }
         }
     }
@@ -183,7 +315,16 @@ class LLMBabysitterUI {
 
         // Show loading indicator
         const selectBtn = document.getElementById('selectAll') as HTMLButtonElement;
-        if (selectBtn) { selectBtn.disabled = true; }
+        const translations = this.stateManager.getState().translations;
+        const selectAllLabel = translations['files.selectAll'] || 'Select All';
+        if (selectBtn) {
+            const busyLabel = translations['status.selecting'] || 'Selecting files...';
+            selectBtn.disabled = true;
+            selectBtn.classList.add('busy');
+            selectBtn.setAttribute('aria-busy', 'true');
+            selectBtn.setAttribute('aria-label', busyLabel);
+            selectBtn.dataset.tooltip = busyLabel;
+        }
 
         const tree = this.stateManager.getFileTree();
         const allFiles: string[] = [];
@@ -194,7 +335,7 @@ class LLMBabysitterUI {
                     allFiles.push(n.relativePath);
                 } else {
                     // Fetch children if not loaded
-                    if (!n.children || n.children.length === 0) {
+                    if (n.children === undefined) {
                         try {
                             const children = await this.fetchFolderChildren(n.relativePath);
                             n.children = children;
@@ -207,12 +348,19 @@ class LLMBabysitterUI {
             }
         };
 
-        await deepCollect(tree);
-
-        if (selectBtn) { selectBtn.disabled = false; }
-
-        this.stateManager.updateState({ selectedFiles: allFiles });
-        this.ipc.postMessage({ type: IpcMessageId.UPDATE_SELECTION, payload: allFiles });
+        try {
+            await deepCollect(tree);
+            this.stateManager.updateState({ selectedFiles: allFiles });
+            this.ipc.postMessage({ type: IpcMessageId.UPDATE_SELECTION, payload: allFiles });
+        } finally {
+            if (selectBtn) {
+                selectBtn.disabled = false;
+                selectBtn.classList.remove('busy');
+                selectBtn.removeAttribute('aria-busy');
+                selectBtn.setAttribute('aria-label', selectAllLabel);
+                selectBtn.dataset.tooltip = selectAllLabel;
+            }
+        }
     }
 
     private fetchFolderChildren(folderPath: string): Promise<FileNode[]> {
@@ -220,6 +368,7 @@ class LLMBabysitterUI {
             const handler = (event: MessageEvent) => {
                 const msg = event.data;
                 if (msg.type === 'folderChildren' && msg.payload.parentPath === folderPath) {
+                    clearTimeout(timeout);
                     window.removeEventListener('message', handler);
                     // Also update the tree node in state manager
                     const node = this.findNode(this.stateManager.getFileTree(), folderPath);
@@ -227,10 +376,13 @@ class LLMBabysitterUI {
                     resolve(msg.payload.children);
                 }
             };
+            const timeout = setTimeout(() => {
+                window.removeEventListener('message', handler);
+                resolve([]);
+            }, 10000);
+
             window.addEventListener('message', handler);
             this.ipc.postMessage({ type: IpcMessageId.EXPAND_FOLDER, payload: folderPath });
-            // Timeout safety
-            setTimeout(() => { window.removeEventListener('message', handler); resolve([]); }, 10000);
         });
     }
 
@@ -251,6 +403,7 @@ class LLMBabysitterUI {
 
     private handleCopy() {
         const state = this.stateManager.getState();
+        this.setCopyBusy(true);
         this.ipc.postMessage({
             type: IpcMessageId.COPY_TO_CLIPBOARD,
             payload: {
@@ -262,11 +415,27 @@ class LLMBabysitterUI {
         });
     }
 
+    private setCopyBusy(isBusy: boolean) {
+        const button = document.getElementById('copy-clipboard') as HTMLButtonElement | null;
+        if (!button) { return; }
+        button.disabled = isBusy;
+        button.classList.toggle('busy', isBusy);
+        if (isBusy) {
+            button.setAttribute('aria-busy', 'true');
+        } else {
+            button.removeAttribute('aria-busy');
+        }
+    }
+
     private showStatus(message: string, status: 'success' | 'error') {
         const bar = document.getElementById('status-bar')!;
         bar.textContent = message;
         bar.className = `status-bar visible ${status}`;
-        setTimeout(() => bar.className = 'status-bar', 3000);
+        if (this.statusTimer) { clearTimeout(this.statusTimer); }
+        this.statusTimer = setTimeout(() => {
+            bar.className = 'status-bar';
+            this.statusTimer = null;
+        }, 3000);
     }
 }
 

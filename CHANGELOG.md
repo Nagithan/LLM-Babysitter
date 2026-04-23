@@ -1,5 +1,37 @@
 # Change Log
 
+## [0.3.0] - 2026-04-23
+
+### Added
+- Added new built-in prompt presets for a pragmatic senior pre-prompt plus `Code / PR review`, `Implement a feature`, `Performance`, and `Security` main instructions.
+
+### Changed
+- Improved the token usage panel by showing prompt and file token subtotals, capping the stacked progress bar correctly, and exposing the token meter to assistive technologies.
+- Standardized the extension UI, built-in prompts, and preset labels in English only by removing the built-in French localization layer.
+- Improved long prompt textareas by keeping them scrollable instead of letting very large prompts over-expand the sidebar.
+- Tightened the default exclusion patterns so common credential files such as `.env`, `.npmrc`, SSH material, and key/certificate files stay hidden from the explorer unless users explicitly opt in.
+
+### Fixed
+- Fixed **Expand All** for lazy-loaded folders so nested directories are progressively loaded and expanded instead of appearing as empty collapsed placeholders.
+- Fixed empty folder checkbox states so loaded empty folders are disabled and no longer appear selected by default.
+- Fixed parent folder selection state when empty folders are mixed with selected files.
+- Fixed batch selection loading states so the Select All button remains disabled with a busy indicator while deep folder contents are collected.
+- Fixed favorite modal keyboard and dismissal behavior: Enter saves, Escape closes, backdrop click cancels, and repeated openings clean up prior listeners.
+- Fixed stale status timers so newer status messages are not hidden by older timeout callbacks.
+- Fixed Copy to Clipboard feedback by adding a busy state while prompt generation is in progress.
+- Fixed explorer search so it no longer blanks out unopened lazy-loaded folders while filtering; matching branches are now discovered progressively and empty searches show an explicit no-results state.
+- Fixed startup token totals for restored file selections by warming the cached file-token count before the webview requests its first token refresh.
+- Refined dotfile discovery so benign dotfiles remain supported while internal VCS/system entries stay hidden and sensitive credential files are excluded by default.
+- Fixed favorite management for modified custom presets so the original preset remains updatable instead of forcing duplicate saves, and built-in presets are now clearly presented as read-only.
+- Fixed tree accessibility by adding keyboard navigation, focus styling, and screen-reader semantics to explorer rows.
+- Fixed prompt refreshes after preset actions and settings refresh so in-progress text is preserved instead of being reset to empty fields.
+- Fixed empty copy attempts so the extension now reports that there is nothing to copy instead of showing a false success state.
+- Fixed the favorite naming modal for keyboard users by trapping focus inside the dialog and restoring focus to the triggering control on close.
+- Fixed favorite-management prompts, actions, confirmations, and status messages so they now stay consistently in English across the native VS Code flows.
+- Hardened file loading by rejecting symbolic links from the explorer and prompt pipeline so linked files cannot escape the workspace boundary.
+- Fixed generated prompt fences so file contents containing backticks no longer break the Markdown envelope around selected files.
+- Fixed file token estimation to use structured file-read results, keeping the meter aligned with the copied prompt even when file content starts with `[` or placeholder messages are injected for skipped/error cases.
+
 ## [0.2.0] - 2026-04-05
 
 ### Added

@@ -1,4 +1,5 @@
 import { ExtensionMessage } from '../../types/index.js';
+import { AppState } from '../../types/index.js';
 
 /**
  * Interface abstraction for the Webview Provider.
@@ -25,6 +26,11 @@ export interface IWebviewAccess {
      * Persists the ID of the last selected preset for a specific section.
      */
     savePresetId(type: 'prePrompt' | 'postPrompt', id: string | null): void;
+
+    /**
+     * Tracks the latest text value for a prompt section so refreshes do not wipe user input.
+     */
+    saveText(type: keyof Pick<AppState, 'prePrompt' | 'instruction' | 'postPrompt'>, text: string): void;
 
     /**
      * Dispatches a raw message to the webview.

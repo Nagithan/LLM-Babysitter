@@ -32,6 +32,11 @@ export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IW
     private presetManager: PresetManager;
     private ipcRouter: IpcMessageRouter;
     private getTokensHandler?: GetTokensHandler;
+    private currentTextState: Pick<AppState, 'prePrompt' | 'instruction' | 'postPrompt'> = {
+        prePrompt: '',
+        instruction: '',
+        postPrompt: ''
+    };
     private logger = Logger.getInstance();
 
     constructor(
@@ -59,7 +64,7 @@ export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IW
         this.ipcRouter.register(IpcMessageId.COPY_TO_CLIPBOARD_RAW, new CopyToClipboardRawHandler(this));
         this.ipcRouter.register(IpcMessageId.MANAGE_PRESET, new ManagePresetHandler(this, this.presetManager));
         this.ipcRouter.register(IpcMessageId.SET_SELECTED_PRESET, new SetSelectedPresetHandler(this));
-        this.ipcRouter.register(IpcMessageId.UPDATE_TEXT, new UpdateTextHandler());
+        this.ipcRouter.register(IpcMessageId.UPDATE_TEXT, new UpdateTextHandler(this));
     }
 
     /**
@@ -126,9 +131,9 @@ export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IW
         const lastPostPromptId = this.getSavedPresetId('postPrompt');
 
         const state: AppState & { fileTree: FileNode[] } = {
-            prePrompt: '',
-            instruction: '',
-            postPrompt: '',
+            prePrompt: this.currentTextState.prePrompt,
+            instruction: this.currentTextState.instruction,
+            postPrompt: this.currentTextState.postPrompt,
             selectedFiles,
             favorites,
             translations,
@@ -137,11 +142,16 @@ export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IW
             lastPostPromptId
         };
 
+        const tokenWarmup = selectedFiles.length > 0
+            ? this.getTokensHandler?.recalculateFileTokens(selectedFiles).catch((error: unknown) => {
+                this.logger.error(`Token warmup failed: ${error instanceof Error ? error.message : String(error)}`);
+            })
+            : undefined;
+
         this._view.webview.postMessage({ type: 'initState', payload: state });
 
-        // Initial token calculation (Wait for webview READY)
-        if (selectedFiles.length > 0) {
-            this.getTokensHandler?.recalculateFileTokens(selectedFiles);
+        if (tokenWarmup) {
+            void tokenWarmup;
         }
     }
 
@@ -166,6 +176,10 @@ export class LLMBabysitterViewProvider implements vscode.WebviewViewProvider, IW
         this.context.workspaceState.update(`llm-babysitter.last-${type}-id`, id);
         const key = type === 'prePrompt' ? 'lastPrePromptId' : 'lastPostPromptId';
         this.sendPartialUpdate({ [key]: id });
+    }
+
+    public saveText(type: keyof Pick<AppState, 'prePrompt' | 'instruction' | 'postPrompt'>, text: string): void {
+        this.currentTextState[type] = text;
     }
     
     private getSavedPresetId(type: 'prePrompt' | 'postPrompt'): string | null {

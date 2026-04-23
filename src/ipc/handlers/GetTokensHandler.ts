@@ -52,14 +52,13 @@ export class GetTokensHandler implements IIpcMessageHandler {
             if (selectedFiles && selectedFiles.length > 0) {
                 for (const filePath of selectedFiles) {
                     try {
-                        const content = await FileManager.getFileContent(filePath);
-                        
-                        // Skip error markers or skipped files (marked with '[')
-                        if (content.startsWith('[')) {
+                        const fileResult = await FileManager.getFileContent(filePath);
+
+                        if (fileResult.kind === 'directory' || fileResult.kind === 'symlink') {
                             continue;
                         }
-                        
-                        fileTokens += PromptGenerator.estimateTokens(content);
+
+                        fileTokens += PromptGenerator.estimateTokens(fileResult.content);
                     } catch {
                         // Skip unreadable files
                         continue;

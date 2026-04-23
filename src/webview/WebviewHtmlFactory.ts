@@ -95,7 +95,7 @@ export class WebviewHtmlFactory {
                             </div>
                         </div>
                         <div class="search-container">
-                            <input type="text" id="fileSearch" class="main-input" placeholder="Search files...">
+                            <input type="text" id="fileSearch" class="main-input" placeholder="Search files..." aria-label="Search files">
                         </div>
                         <div id="file-tree" class="file-tree"></div>
                     </section>
@@ -126,9 +126,9 @@ export class WebviewHtmlFactory {
 
 
                     <div class="main-actions">
-                        <div class="token-container" id="token-container">
+                        <div class="token-container" id="token-container" role="meter" aria-label="0 tokens">
                             <div class="token-info">
-                                <span class="token-label">Token Usage</span>
+                                <span id="token-label" class="token-label">Token Usage</span>
                                 <span class="token-value"><span id="token-count">0</span> / 128k</span>
                             </div>
                             <div class="progress-bar-bg">
@@ -138,27 +138,27 @@ export class WebviewHtmlFactory {
                             <div id="token-breakdown" class="token-breakdown">
                                 <div class="breakdown-item">
                                     <span class="dot prompts"></span>
-                                    <span class="breakdown-label">Prompts:</span>
+                                    <span id="breakdown-label-prompts" class="breakdown-label">Prompts:</span>
                                     <span id="count-prompts" class="breakdown-value">0</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="dot files"></span>
-                                    <span class="breakdown-label">Files:</span>
+                                    <span id="breakdown-label-files" class="breakdown-label">Files:</span>
                                     <span id="count-files" class="breakdown-value">0</span>
                                 </div>
                             </div>
                         </div>
                         <button id="copy-clipboard" class="primary-btn">
                             <span class="codicon codicon-copy"></span>
-                            Copy to Clipboard
+                            <span id="copy-label">Copy to Clipboard</span>
                         </button>
                     </div>
                     
-                    <div id="status-bar" class="status-bar"></div>
+                    <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
                 </div>
 
-                <div id="favorite-modal" class="overlay">
-                    <div class="modal">
+                <div id="favorite-modal" class="overlay" role="presentation">
+                    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
                         <h3 id="modal-title">Name your favorite</h3>
                         <input type="text" id="favorite-name" class="main-input" placeholder="Favorite name...">
                         <div style="display: flex; gap: 8px; justify-content: flex-end;">

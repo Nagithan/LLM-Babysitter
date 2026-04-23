@@ -96,11 +96,16 @@ export class PresetManager {
     const t = LocaleManager.getTranslations();
     return [
       { id: 'built-in-intro-1', name: t['preset.name.intro.1'], content: t['template.intro.1'], type: 'prePrompt' },
+      { id: 'built-in-intro-2', name: t['preset.name.intro.2'], content: t['template.intro.2'], type: 'prePrompt' },
       { id: 'built-in-instr-1', name: t['preset.name.instr.1'], content: t['template.instr.1'], type: 'instruction' },
       { id: 'built-in-instr-2', name: t['preset.name.instr.2'], content: t['template.instr.2'], type: 'instruction' },
       { id: 'built-in-instr-3', name: t['preset.name.instr.3'], content: t['template.instr.3'], type: 'instruction' },
       { id: 'built-in-instr-4', name: t['preset.name.instr.4'], content: t['template.instr.4'], type: 'instruction' },
       { id: 'built-in-instr-5', name: t['preset.name.instr.5'], content: t['template.instr.5'], type: 'instruction' },
+      { id: 'built-in-instr-6', name: t['preset.name.instr.6'], content: t['template.instr.6'], type: 'instruction' },
+      { id: 'built-in-instr-7', name: t['preset.name.instr.7'], content: t['template.instr.7'], type: 'instruction' },
+      { id: 'built-in-instr-8', name: t['preset.name.instr.8'], content: t['template.instr.8'], type: 'instruction' },
+      { id: 'built-in-instr-9', name: t['preset.name.instr.9'], content: t['template.instr.9'], type: 'instruction' },
       { id: 'built-in-final-1', name: t['preset.name.final.1'], content: t['template.final.1'], type: 'postPrompt' },
     ];
   }

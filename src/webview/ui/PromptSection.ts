@@ -9,6 +9,7 @@ export class PromptSection {
     private manageBtn: HTMLButtonElement;
     private selectedPresetId: string | null = null;
     private lastSelectedPresetId: string | null = null;
+    private managePresetId: string | null = null;
     private isInitialized = false;
 
     constructor(
@@ -41,8 +42,8 @@ export class PromptSection {
         };
 
         this.manageBtn.onclick = () => {
-            if (!this.selectedPresetId) {return;}
-            const favorite = this.stateManager.getState().favorites.find(f => f.id === this.selectedPresetId);
+            if (!this.managePresetId) {return;}
+            const favorite = this.stateManager.getState().favorites.find(f => f.id === this.managePresetId);
             if (favorite) {
                 this.ipc.postMessage({ 
                     type: IpcMessageId.MANAGE_PRESET, 
@@ -73,12 +74,14 @@ export class PromptSection {
                     this.textarea.value = saved.content;
                     this.lastSelectedPresetId = saved.id;
                     this.stateManager.updateState({ [this.type]: saved.content });
+                    this.ipc.postMessage({ type: IpcMessageId.UPDATE_TEXT, payload: { type: this.type, text: saved.content } });
                 }
             } else if (typeFavs.length === 1) {
                 this.textarea.value = typeFavs[0].content;
                 this.selectedPresetId = typeFavs[0].id;
                 this.lastSelectedPresetId = typeFavs[0].id;
                 this.stateManager.updateState({ [this.type]: typeFavs[0].content });
+                this.ipc.postMessage({ type: IpcMessageId.UPDATE_TEXT, payload: { type: this.type, text: typeFavs[0].content } });
             }
         }
 
@@ -89,6 +92,7 @@ export class PromptSection {
     private renderFavorites() {
         const favorites = this.stateManager.getState().favorites.filter(f => f.type === this.type);
         const currentText = this.textarea.value;
+        const translations = this.stateManager.getState().translations ?? {};
 
         // Determine which one truly matches the content right now
         const matchingFav = favorites.find(f => f.content === currentText);
@@ -112,7 +116,7 @@ export class PromptSection {
                 chip.classList.add('active');
             } else if (isModified) {
                 chip.classList.add('modified');
-                tooltip = 'Content modified - click to save as new favorite';
+                tooltip = translations['favorites.modifiedTooltip'] || 'Content modified - click to save as new favorite';
             }
 
             chip.dataset.tooltip = tooltip;
@@ -147,10 +151,23 @@ export class PromptSection {
             this.favoritesContainer.appendChild(chip);
         });
 
-        const hasActive = this.selectedPresetId !== null;
-        this.manageBtn.style.opacity = hasActive ? '1' : '0.3';
-        this.manageBtn.style.pointerEvents = hasActive ? 'all' : 'none';
-        this.manageBtn.title = hasActive ? 'Manage Favorite' : 'Select a favorite to manage';
+        const manageTargetId = this.selectedPresetId ?? this.lastSelectedPresetId;
+        const manageTarget = manageTargetId ? favorites.find(f => f.id === manageTargetId) ?? null : null;
+        const isReadOnlyBuiltIn = manageTarget?.id.startsWith('built-in-') ?? false;
+        const canManage = !!manageTarget && !isReadOnlyBuiltIn;
+        this.managePresetId = canManage ? manageTarget!.id : null;
+
+        const manageTitle = translations['button.manageFavorite'] || 'Manage Favorite';
+        const disabledTitle = translations['favorites.selectToManage'] || 'Select a favorite to manage';
+        const readOnlyTitle = translations['favorites.readOnly'] || 'Built-in favorites are read-only';
+        const tooltip = canManage ? manageTitle : (isReadOnlyBuiltIn ? readOnlyTitle : disabledTitle);
+
+        this.manageBtn.style.opacity = canManage ? '1' : '0.3';
+        this.manageBtn.disabled = !canManage;
+        this.manageBtn.setAttribute('aria-disabled', String(!canManage));
+        this.manageBtn.title = tooltip;
+        this.manageBtn.dataset.tooltip = tooltip;
+        this.manageBtn.setAttribute('aria-label', tooltip);
     }
 
     private adjustHeight() {

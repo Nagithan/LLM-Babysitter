@@ -35,9 +35,9 @@ describe('PromptGenerator Unit Tests', () => {
     it('should generate a prompt with selected files', async () => {
         // Mock FileManager.getFileContent (static method needs vi.spyOn)
         vi.spyOn(FileManager, 'getFileContent').mockImplementation(async (path) => {
-            if (path === 'file1.ts') { return 'content1'; }
-            if (path === 'file2.ts') { return 'content2'; }
-            return '';
+            if (path === 'file1.ts') { return { kind: 'content', content: 'content1' }; }
+            if (path === 'file2.ts') { return { kind: 'content', content: 'content2' }; }
+            return { kind: 'error', content: '[Error reading file: unknown]' };
         });
 
         const prompt = await PromptGenerator.generate('PRE', 'INSTR', 'POST', ['file1.ts', 'file2.ts']);
@@ -52,11 +52,26 @@ describe('PromptGenerator Unit Tests', () => {
     });
 
     it('should skip directories during generation', async () => {
-        vi.spyOn(FileManager, 'getFileContent').mockResolvedValue('[Selected entry is a directory - skipped]');
+        vi.spyOn(FileManager, 'getFileContent').mockResolvedValue({
+            kind: 'directory',
+            content: '[Selected entry is a directory - skipped]'
+        });
 
         const prompt = await PromptGenerator.generate('PRE', 'INSTR', 'POST', ['some-dir']);
         
         // Should not contain the directory content marker in the final output
         expect(prompt).not.toContain('directory - skipped');
+    });
+
+    it('should skip symbolic links during generation', async () => {
+        vi.spyOn(FileManager, 'getFileContent').mockResolvedValue({
+            kind: 'symlink',
+            content: '[Symbolic link - skipped for security]'
+        });
+
+        const prompt = await PromptGenerator.generate('PRE', 'INSTR', 'POST', ['linked-file']);
+
+        expect(prompt).not.toContain('skipped for security');
+        expect(prompt).not.toContain('linked-file');
     });
 });

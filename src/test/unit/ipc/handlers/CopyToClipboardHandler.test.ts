@@ -17,7 +17,8 @@ describe('CopyToClipboardHandler Unit Tests', () => {
             postMessage: vi.fn(),
             sendInitialState: vi.fn(),
             saveSelection: vi.fn(),
-            savePresetId: vi.fn()
+            savePresetId: vi.fn(),
+            saveText: vi.fn()
         };
         handler = new CopyToClipboardHandler(mockWebview as unknown as IWebviewAccess);
     });
@@ -48,9 +49,19 @@ describe('CopyToClipboardHandler Unit Tests', () => {
 
         await handler.execute({
             type: IpcMessageId.COPY_TO_CLIPBOARD,
-            payload: { selectedFiles: [] }
+            payload: { prePrompt: 'Pre', instruction: '', postPrompt: '', selectedFiles: [] }
         } as unknown as WebviewMessage);
 
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', expect.any(String));
+    });
+
+    it('should refuse to report success when the generated prompt is empty', async () => {
+        await handler.execute({
+            type: IpcMessageId.COPY_TO_CLIPBOARD,
+            payload: { prePrompt: '', instruction: '', postPrompt: '', selectedFiles: [] }
+        } as unknown as WebviewMessage);
+
+        expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
         expect(mockWebview.sendStatus).toHaveBeenCalledWith('error', expect.any(String));
     });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PromptAssembler} from '../../../core/PromptAssembler.js';
+import { PromptAssembler } from '../../../core/PromptAssembler.js';
 import type { FileEntry } from '../../../core/PromptAssembler.js';
 
 /**
@@ -37,5 +37,16 @@ describe('PromptAssembler Unit Tests', () => {
     it('should omit empty sections', () => {
         const prompt = assembler.assemble("   ", "Analyze code", "", [{ relativePath: 'a.js', content: 'x' }]);
         expect(prompt).not.toContain("### Additional Context / Conclusion");
+    });
+
+    it('should use a longer fence when file content contains triple backticks', () => {
+        const prompt = assembler.assemble("", "Inspect", "", [{
+            relativePath: 'docs/example.md',
+            content: "before\n```\nafter"
+        }]);
+
+        expect(prompt).toContain("#### File: docs/example.md");
+        expect(prompt).toContain("````md");
+        expect(prompt).toMatch(/````md[\s\S]*\n````$/);
     });
 });

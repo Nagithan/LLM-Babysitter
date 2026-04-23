@@ -18,7 +18,8 @@ describe('ManagePresetHandler Unit Tests', () => {
             postMessage: vi.fn(),
             sendInitialState: vi.fn(),
             saveSelection: vi.fn(),
-            savePresetId: vi.fn()
+            savePresetId: vi.fn(),
+            saveText: vi.fn()
         };
         mockPresetManager = {
             getPresets: vi.fn().mockReturnValue([
@@ -43,9 +44,12 @@ describe('ManagePresetHandler Unit Tests', () => {
             payload: { id: 'p1', currentText: 'Ignored for rename' }
         } as unknown as WebviewMessage);
 
-        expect(vscode.window.showQuickPick).toHaveBeenCalled();
-        expect(vscode.window.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: 'Original Name' }));
+        expect(vscode.window.showQuickPick).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({ label: expect.stringContaining('Rename') })
+        ]), expect.objectContaining({ placeHolder: expect.stringContaining('Manage favorite') }));
+        expect(vscode.window.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: 'Original Name', prompt: expect.any(String) }));
         expect(mockPresetManager.savePreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Name' }));
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.any(String));
         expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 
@@ -61,7 +65,7 @@ describe('ManagePresetHandler Unit Tests', () => {
             id: 'p1', 
             content: 'Updated Content' 
         }));
-        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.stringContaining('updated successfully'));
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.any(String));
         expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 
@@ -75,6 +79,8 @@ describe('ManagePresetHandler Unit Tests', () => {
         } as unknown as WebviewMessage);
 
         expect(mockPresetManager.deletePreset).toHaveBeenCalledWith('p1');
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('delete'), { modal: true }, expect.any(String));
+        expect(mockWebview.sendStatus).toHaveBeenCalledWith('success', expect.any(String));
         expect(mockWebview.sendInitialState).toHaveBeenCalled();
     });
 

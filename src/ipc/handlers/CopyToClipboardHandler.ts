@@ -29,6 +29,11 @@ export class CopyToClipboardHandler implements IIpcMessageHandler {
                     selectedFiles
                 );
 
+                if (!prompt.trim()) {
+                    this.webview.sendStatus('error', LocaleManager.getTranslation('status.promptEmpty'));
+                    return;
+                }
+
                 await vscode.env.clipboard.writeText(prompt);
 
                 this.webview.sendStatus('success', LocaleManager.getTranslation('status.copied'));

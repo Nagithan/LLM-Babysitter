@@ -17,7 +17,8 @@ describe('SavePresetHandler Unit Tests', () => {
             postMessage: vi.fn(),
             sendInitialState: vi.fn(),
             saveSelection: vi.fn(),
-            savePresetId: vi.fn()
+            savePresetId: vi.fn(),
+            saveText: vi.fn()
         };
         mockPresetManager = {
             savePreset: vi.fn().mockResolvedValue(undefined)

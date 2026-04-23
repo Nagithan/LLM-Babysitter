@@ -3,7 +3,7 @@
   "displayName": "LLM Babysitter",
   "description": "Prompt generation with code context for online LLM requests.",
   "publisher": "nagithan",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
@@ -74,11 +74,22 @@
           "default": [
             "**/node_modules/**",
             "**/.git/**",
+            "**/.ssh/**",
+            "**/.aws/credentials",
             "**/dist/**",
             "**/out/**",
-            "**/*.log"
+            "**/*.log",
+            "**/.env",
+            "**/.env.*",
+            "**/.npmrc",
+            "**/.netrc",
+            "**/.pypirc",
+            "**/*.pem",
+            "**/*.key",
+            "**/*.p12",
+            "**/*.pfx"
           ],
-          "description": "Folders and files to exclude from the context selection."
+          "description": "Folders and files to exclude from the context selection. Sensitive credential files are excluded by default."
         }
       }
     },

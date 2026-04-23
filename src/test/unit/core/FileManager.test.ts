@@ -67,12 +67,13 @@ describe('FileManager Unit Tests', () => {
             expect(children[2].name).toBe('file.ts');
         });
 
-        it('should ignore files starting with dot except .github and .vscode', async () => {
+        it('should keep useful dotfiles while hiding internal VCS/system entries', async () => {
             const ws = vscode.workspace as unknown as MockWorkspace;
             ws.setMockFile('/workspaces/project/src/.git/config', '');
             ws.setMockFile('/workspaces/project/src/.github/workflow.yml', '');
             ws.setMockFile('/workspaces/project/src/.vscode/settings.json', '');
-            ws.setMockFile('/workspaces/project/src/.normal_hidden', '');
+            ws.setMockFile('/workspaces/project/src/.env', '');
+            ws.setMockFile('/workspaces/project/src/.editorconfig', '');
             ws.setMockFile('/workspaces/project/src/visible.ts', '');
 
             const children = await FileManager.getFolderChildren('Project/src');
@@ -80,9 +81,27 @@ describe('FileManager Unit Tests', () => {
             
             expect(names).toContain('.github');
             expect(names).toContain('.vscode');
+            expect(names).toContain('.env');
+            expect(names).toContain('.editorconfig');
             expect(names).toContain('visible.ts');
             expect(names).not.toContain('.git');
-            expect(names).not.toContain('.normal_hidden');
+        });
+
+        it('should hide symbolic links from folder listings', async () => {
+            vi.mocked(vscode.workspace.fs.readDirectory).mockResolvedValue([
+                ['safe.ts', vscode.FileType.File],
+                ['docs', vscode.FileType.Directory],
+                ['linked.pem', vscode.FileType.File | vscode.FileType.SymbolicLink],
+                ['linked-dir', vscode.FileType.Directory | vscode.FileType.SymbolicLink],
+            ]);
+
+            const children = await FileManager.getFolderChildren('Project/src');
+            const names = children.map(c => c.name);
+
+            expect(names).toContain('safe.ts');
+            expect(names).toContain('docs');
+            expect(names).not.toContain('linked.pem');
+            expect(names).not.toContain('linked-dir');
         });
 
         it('should deduplicate concurrent scans for the same path', async () => {
@@ -113,7 +132,7 @@ describe('FileManager Unit Tests', () => {
             (vscode.workspace as unknown as MockWorkspace).setMockFile('/workspaces/project/src/hello.ts', 'Hello World');
 
             const content = await FileManager.getFileContent('Project/src/hello.ts');
-            expect(content).toBe('Hello World');
+            expect(content).toEqual({ kind: 'content', content: 'Hello World' });
         });
 
         it('should skip directories', async () => {
@@ -121,8 +140,23 @@ describe('FileManager Unit Tests', () => {
             ws.setMockFile('/workspaces/project/src/dir/file', ''); // Creates a directory 'dir'
 
             const content = await FileManager.getFileContent('Project/src/dir');
-            expect(content).toContain('skipped');
-            expect(content).toContain('directory');
+            expect(content.kind).toBe('directory');
+            expect(content.content).toContain('skipped');
+            expect(content.content).toContain('directory');
+        });
+
+        it('should skip symbolic links for security', async () => {
+            vi.mocked(vscode.workspace.fs.stat).mockResolvedValue({
+                type: vscode.FileType.File | vscode.FileType.SymbolicLink,
+                size: 42,
+                ctime: 0,
+                mtime: 0
+            });
+
+            const content = await FileManager.getFileContent('Project/src/linked.pem');
+            expect(content.kind).toBe('symlink');
+            expect(content.content).toContain('skipped for security');
+            expect(vscode.workspace.fs.readFile).not.toHaveBeenCalled();
         });
 
         it('should skip large files', async () => {
@@ -135,22 +169,25 @@ describe('FileManager Unit Tests', () => {
             });
 
             const content = await FileManager.getFileContent('Project/src/huge.ts');
-            expect(content).toContain('too large');
+            expect(content.kind).toBe('tooLarge');
+            expect(content.content).toContain('too large');
         });
 
         it('should skip binary files', async () => {
             (vscode.workspace as unknown as MockWorkspace).setMockFile('/workspaces/project/src/image.png', new Uint8Array([0x00, 0x01]));
 
             const content = await FileManager.getFileContent('Project/src/image.png');
-            expect(content).toContain('Binary file');
+            expect(content.kind).toBe('binary');
+            expect(content.content).toContain('Binary file');
         });
 
         it('should handle filesystem errors gracefully', async () => {
             vi.mocked(vscode.workspace.fs.stat).mockRejectedValue(new Error('Device error'));
             
             const content = await FileManager.getFileContent('Project/src/fail.ts');
-            expect(content).toContain('Error reading file');
-            expect(content).toContain('Device error');
+            expect(content.kind).toBe('error');
+            expect(content.content).toContain('Error reading file');
+            expect(content.content).toContain('Device error');
         });
     });
 
@@ -209,7 +246,10 @@ describe('FileManager Unit Tests', () => {
             vi.mocked(vscode.workspace.fs.readFile).mockRejectedValue('Not an Error object');
             
             const content = await FileManager.getFileContent('Project/src/file.ts');
-            expect(content).toBe('[Error reading file: Not an Error object]');
+            expect(content).toEqual({
+                kind: 'error',
+                content: '[Error reading file: Not an Error object]'
+            });
         });
     });
 });
